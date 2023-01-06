@@ -1,0 +1,6 @@
+pandas
+biopython
+multiprocessing
+ast
+matplotlib
+
