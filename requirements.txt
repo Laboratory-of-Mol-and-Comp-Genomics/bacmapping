@@ -3,4 +3,5 @@ biopython
 multiprocessing
 ast
 matplotlib
+ftplib
 
