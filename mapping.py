@@ -10,7 +10,9 @@ import multiprocessing
 import ast
 import matplotlib.pyplot as plt
 import math
+from itertools import repeat
 
+#Download files from the FTP server
 def getNewClones():
     #Set taxid and version (most recent human)
     version = '118'
@@ -91,9 +93,13 @@ def getNewClones():
         out_handle.write(net_handle.read())
         out_handle.close()
         net_handle.close()
-        
-        
+
+#Get only BAC libraries        
 def narrowDownLibraries():
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
     #Files
     cwd = os.getcwd()
     clonesDetails = os.path.join(cwd,'details')
@@ -116,10 +122,10 @@ def splitAttributesWithMids(Ser,middles):
     return(df)    
 
 #Given a row, gets the sequence and cuts it
-def getCuts(arg):
-    row = arg[0]
-    maxcuts = arg[1]
-    accPath = os.path.join(clonesFastas,row[4]+'.fasta')
+def getCuts(row):
+    clonesSequences = row[7]
+    maxcuts = row[6]
+    accPath = os.path.join(clonesSequences,row[4]+'.fasta')
     if os.path.isfile(accPath) == False:
         return('NoA')
     record_iter = SeqIO.parse(open(accPath), "fasta")
@@ -145,13 +151,22 @@ def getCuts(arg):
     cuts['Accession'] = row[4]
     cuts['Library'] = row[5]
     return(cuts)
+
+#Map the clones detailed in clone_acstate_taxid 
+def mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
     
-def mapSequencedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize=500):
      #Prep folders
     cwd = os.getcwd()
     clonesDetails = os.path.join(cwd,'details')
     clonesSequences = os.path.join(cwd,'sequences')
-    clonesMaps = os.path.join(cwd,'maps')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'sequenced')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    if os.path.isdir(clonesMapsBase) == False:
+        os.mkdir(clonesMapsBase)
     if os.path.isdir(clonesMaps) == False:
         os.mkdir(clonesMaps)
     
@@ -170,14 +185,15 @@ def mapSequencedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize
             shortC = row
     global shortComm
     shortComm = rst.RestrictionBatch(shortC)
-    knames = ['Name','Start','End','Accession'] + list(shortComm)
+    knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
     
     sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
     sequencedClones['start'] = '0'
     if include_libraries == True:
         sequencedClones = sequencedClones[sequencedClones['LibAbbr'].isin(included_list)]
     row = zip(sequencedClones['CloneName'], sequencedClones['Chrom'], sequencedClones['start'],
-              sequencedClones['SeqLen'], sequencedClones['Accession'], sequencedClones['LibAbbr'])
+              sequencedClones['SeqLen'], sequencedClones['Accession'], sequencedClones['LibAbbr'],
+             repeat(maxcuts), repeat(clonesSequences))
     with multiprocessing.Pool(cpustouse) as p:
         for result in p.imap_unordered(getCuts, row):
             if result == 'NoA':
@@ -193,13 +209,22 @@ def mapSequencedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize
             with open(file, "a") as fwri:
                 writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter=",", fieldnames = knames)
                 writer.writerow(result)
+
+#Map the end-sequenced clones based on placement details
+def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
     
-def mapPlacedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize=500):
     #Prep folders
     cwd = os.getcwd()
     clonesDetails = os.path.join(cwd,'details')
     clonesSequences = os.path.join(cwd,'sequences')
-    clonesMaps = os.path.join(cwd,'maps')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'placed')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    if os.path.isdir(clonesMapsBase) == False:
+        os.mkdir(clonesMapsBase)
     if os.path.isdir(clonesMaps) == False:
         os.mkdir(clonesMaps)
     
@@ -218,7 +243,7 @@ def mapPlacedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize=50
             shortC = row
     global shortComm
     shortComm = rst.RestrictionBatch(shortC)
-    knames = ['Name','Start','End','Accession'] + list(shortComm)
+    knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
     
     #get the location to return to if necesary
     startline = 0
@@ -277,7 +302,7 @@ def mapPlacedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize=50
             with open(os.path.join(startchunkf), 'w') as chri:
                 chri.write(str(chunknum))
             chunknum+=1
-            newcols = placedClones['attributes'].apply(splitAttributesWithMids, args=(middles))
+            newcols = placedClones['attributes'].apply(splitAttributesWithMids, middles=middles)
             newcols.columns = cnames
             placedClones = pd.concat([placedClones,newcols], axis=1)
             placedClones['Library'] = library
@@ -285,17 +310,18 @@ def mapPlacedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize=50
             splitPlacedClones = [placedClones[placedClones['seqid']==x] for x in accs] #split clones into separate dfs by accession
             for oneSeqPlacedClones in splitPlacedClones:
                 accession = oneSeqPlacedClones.iloc[0]['seqid']
-                accPath = os.path.join(clonesFastas,accession+'.fasta')
+                accPath = os.path.join(clonesSequences,accession+'.fasta')
                 if os.path.isfile(accPath) == False:
                     continue
-                record_iter = SeqIO.parse(open(accPath), "fasta")
-                currentseq = list(record_iter)[0]
+                record_iter = list(SeqIO.parse(open(accPath), "fasta"))
+                currentseq = record_iter[0]
                 de = currentseq.description
                 curChrom = de[de.find('chromosome ')+11:de.find(',')]
-                row = zip(oneSeqPlacedClones['Name'],oneSeqPlacedClones['start'],
-                          oneSeqPlacedClones['end'],oneSeqPlacedClones['seqid'])
+                row = zip(oneSeqPlacedClones['Name'],repeat(curChrom),oneSeqPlacedClones['start'],
+                          oneSeqPlacedClones['end'],oneSeqPlacedClones['seqid'],repeat(library),
+                         repeat(maxcuts), repeat(clonesSequences))
                 with multiprocessing.Pool(cpustouse) as p:
-                    for result in p.imap_unordered(getCuts, (row,50)):
+                    for result in p.imap_unordered(getCuts, (row)):
                         if result == 'NoA':
                             continue
                         file = os.path.join(folder, curChrom+'.csv')
@@ -308,7 +334,8 @@ def mapPlacedClones(includeLibraries=True, cpustouse=1, maxcuts=50, chunksize=50
                             writer.writerow(result)
     os.remove(startlibf)
     os.remove(startchunkf)
-    
+
+#Draw a circular or linear map of an enzyme
 def drawMap(row,enzyme,circular = True):
     nums = ast.literal_eval(list(r[enzyme])[0])
     totallength = int(row['End']) - int(row['Start'])
@@ -363,3 +390,292 @@ def drawMap(row,enzyme,circular = True):
             rotate = (math.degrees(piv)-90)*-1
             plt.text(1.15*x,1.15*y,str(v), rotation = rotate, rotation_mode = 'anchor', transform_rotates_text=True)
     return(plt)
+
+#Count BACs
+def countPlacedBACs():
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'placed')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    
+    #Count
+    totalnumber = 0
+    libnumbers = []
+    libraries = os.listdir(clonesMaps)
+    for library in libraries:
+        libnumber = 0
+        libpath = os.path.join(clonesMaps, library)
+        if os.path.isdir(libpath) == False:
+            continue
+        chroms = os.listdir(libpath)
+        for chrom in chroms:
+            chrompath = os.path.join(libpath,chrom)
+            locmaps = pd.read_csv(chrompath, sep = '\t', low_memory=False)
+            chromnumber = len(locmaps)
+            libnumber+=chromnumber
+        libnumbers.append([library,libnumber])
+        totalnumber += libnumber
+    libnumbers.append(['total',totalnumber])
+    outputf = os.path.join(cwd, 'counts.csv')
+
+    with open (outputf,'w') as file:
+        w = csv.writer(file)
+        w.writerows(libnumbers)
+
+def splitAttributes(ser):
+        middles = [x.find('=') for x in ser]
+        new = str(ser).split(';')
+        clipped = [x[middles[i]+1:] for i,x in enumerate(new)]
+        df = pd.Series(clipped)
+        return(df)        
+
+#Get coverage of the genome
+def getCoverage(include_libraries=True):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'placed')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    
+    placedAccessions = os.path.join(clonesSequences,'PlacedAccessions.csv')
+    libraryDetails = os.path.join(clonesDetails,'library_'+taxid+'.out')
+    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
+    placedClonesDetailFs = [x for x in os.listdir(clonesDetails) if x[-3:] == 'gff']
+    included_libraries = os.path.join(clonesDetails,'includedLibraries.csv')
+    if include_libraries == True:
+        with open(included_libraries) as incl:
+            reader = csv.reader(incl)
+            included_list = [row[0] for row in reader]
+
+    if include_libraries == True:
+        cPlacedClonesDetailFs=[]
+        for pCD in placedClonesDetailFs:
+            library = pCD[:pCD.find('.')]
+            if library in included_list:
+                cPlacedClonesDetailFs.append(pCD)
+
+    with open (placedAccessions, 'r') as fi:
+        allaccs = [x.rstrip() for x in fi]
+    allchrs = ['0'] * len(allaccs)
+    accnames = ['0'] * len(allaccs)
+
+    for pCD in cPlacedClonesDetailFs:
+        library = pCD[:pCD.find('.')]
+        fpCD = os.path.join(clonesDetails,pCD)
+        placedClones = pd.read_csv(fpCD, sep='\t')
+        placedClones['start'] = placedClones['start'].astype(int)
+        placedClones['end'] = placedClones['end'].astype(int)
+        if placedClones.empty:
+            continue
+        newcols = placedClones['attributes'].apply(splitAttributes)
+        newcols.columns = [x[:x.find('=')] for x in str(placedClones.iloc[0]['attributes']).split(';')]
+        placedClones = pd.concat([placedClones,newcols], axis=1)
+        placedClones['Library'] = library
+        accs = (placedClones['seqid']).unique()
+        splitPlacedClones = [placedClones[placedClones['seqid']==x] for x in accs]
+        for oneSeqPlacedClones in splitPlacedClones:
+            accession = oneSeqPlacedClones.iloc[0]['seqid']
+            accPath = os.path.join(clonesSequences,accession+'.fasta')
+            if os.path.isfile(accPath) == False:
+                continue
+            accloc = allaccs.index(accession)
+            if len(allchrs[accloc]) == 1:
+                record_iter = SeqIO.parse(open(accPath), "fasta")
+                currentseq = list(record_iter)[0]
+                de = currentseq.description
+                curChrom = de[de.find('chromosome ')+11:de.find(',')]
+                accnames[accloc] = curChrom
+                seq = currentseq.seq
+                seqlen = len(seq)
+                allchrs[accloc] = np.asarray([0]*seqlen)
+            for clone in oneSeqPlacedClones.iterrows():
+                s= int(clone[1]['start'])
+                e= int(clone[1]['end'])
+                rep = [1]*(e-s)
+                loc = list(range(s,e))
+                allchrs[accloc][loc]=rep
+
+    outputf = os.path.join(cwd,'coverage.csv')
+    with open (outputf,'w') as file:
+        w = csv.writer(file)
+        w.writerow('Accession','Chromosome','BasesCovered','TotalBases')
+        for i in range(len(allaccs)):
+            if len(allchrs[i]) == 1:
+                continue
+            w.writerow([allaccs[i],accnames[i],sum(allchrs[i]),len(allchrs[i])])
+            
+#Get average length
+def getAverageLength(include_libraries=True):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'placed')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    
+    placedClonesDetailFs = [x for x in os.listdir(clonesDetails) if x[-3:] == 'gff']
+    included_libraries = os.path.join(clonesDetails,'includedLibraries.csv')
+    if include_libraries == True:
+        with open(included_libraries) as incl:
+            reader = csv.reader(incl)
+            included_list = [row[0] for row in reader]
+
+    cPlacedClonesDetailFs= placedClonesDetailFs.copy()
+    if include_libraries == True:
+        cPlacedClonesDetailFs=[]
+        for pCD in placedClonesDetailFs:
+            library = pCD[:pCD.find('.')]
+            if library in included_list:
+                cPlacedClonesDetailFs.append(pCD)
+
+    averages = []
+    for pCD in cPlacedClonesDetailFs:
+        library = pCD[:pCD.find('.')]
+        fpCD = os.path.join(clonesDetails,pCD)
+        placedClones = pd.read_csv(fpCD, sep='\t')
+        placedClones['start'] = placedClones['start'].astype(int)
+        placedClones['end'] = placedClones['end'].astype(int)
+        placedClones['length'] = placedClones['end'] - placedClones['start']
+        average = placedClones['length'].mean()
+        averages.append([library, average])
+
+    outputf = os.path.join(cwd,'averagelength.csv')
+    with open (outputf,'w') as file:
+        w = csv.writer(file)
+        w.writerows(averages)
+        
+#Get statistics for sequenced clones
+def getSequencedClonesStats(include_libraries=True):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'placed')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    
+    libraryDetails = os.path.join(clonesDetails,'library_'+taxid+'.out')
+    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
+    sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
+    sequencedClones['SeqLen'] = sequencedClones['SeqLen'].astype(int)
+
+    included_libraries = os.path.join(clonesDetails,'includedLibraries.csv')
+    if include_libraries == True:
+        with open(included_libraries) as incl:
+            reader = csv.reader(incl)
+            included_list = [row[0] for row in reader]
+
+    liblist = sequencedClones['LibAbbr'].unique()
+    cliblist = list(set(liblist) & set(included_list))
+    splitty = [sequencedClones[sequencedClones['LibAbbr']==x] for x in cliblist]
+    comlist = []
+    for seC in splitty:
+        comlist.append([seC.iloc[0]['LibAbbr'],seC['SeqLen'].mean(),len(seC)])
+
+    outputf = os.path.join(cwd,'sequencedStats.csv')
+    with open (outputf,'w') as file:
+        w = csv.writer(file)
+        w.writerows(comlist)
+    
+def onlySingleCutters(row):
+    desc = row.iloc[:6]
+    vals = row.iloc[6:]
+    vals = vals.dropna()
+    vals = vals.map(lambda x: ast.literal_eval(x))
+    lvals = [len(x)==1 for x in vals.to_numpy()]
+    shvals = vals[lvals].map(lambda x: int(x[0])+int(desc['Start']))
+    return(shvals)
+
+def findPairs(row):
+    shortestoverlap = row[-4]
+    longestoverlap = row[-3]
+    locmaps = row[-2]
+    cloneslistlength = row[-1]
+    row = row[0]
+    index = row[0]
+    row = row[1]
+    singles = onlySingleCutters(row)
+    nx = index
+    pairs = pd.DataFrame(columns = ['Name1','Start1','End1','Enzyme1','Site1',
+                                    'Name2','Star2t','End2','Enzyme2','Site2'])
+    while True:
+        nx+=1
+        if nx > cloneslistlength - 2:
+            break
+        testrow = locmaps.iloc[nx]
+        if int(row['End']) < int(testrow['Start']):
+            break
+        testsingles = onlySingleCutters(testrow)
+        for site in singles.items():
+            nearsites = testsingles[testsingles > (site[1] - longestoverlap)]
+            nearsites = nearsites[nearsites < site[1] - shortestoverlap]
+            if len(nearsites) == 0:
+                break
+            for nearsite in nearsites.items():
+                pairs.loc[len(pairs.index)] = [row['Name'],row['Start'],row['End'],site[0],site[1],
+                                            testrow['Name'],testrow['Start'],testrow['End'],nearsite[0],nearsite[1]]
+    return(pairs)    
+
+def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    clonesMaps = os.path.join(clonesMapsBase,'placed')
+    clonesPairs = os.path.join(cwd,'pairs')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    
+    if os.path.isdir(clonesPairs) == False:
+        os.mkdir(clonesPairs)
+
+    libraries = os.listdir(clonesMaps)
+    for library in libraries:
+        libpath = os.path.join(clonesMaps, library)
+        if os.path.isdir(libpath) == False:
+            continue
+        chroms = os.listdir(libpath)
+        for chrom in chroms:
+            chrompath = os.path.join(libpath,chrom)
+            locmaps = pd.read_csv(chrompath, sep = '\t', low_memory=False)
+            locmaps['Start'] = locmaps['Start'].astype(int)
+            locmaps = locmaps.sort_values(by=['Start'])
+            locmaps = locmaps.reset_index(drop=True)
+            cloneslistlength = len(locmaps)
+            chromsave = os.path.join(clonesPairs,library)
+            if os.path.isdir(chromsave) == False:
+                os.mkdir(chromsave)
+            savepath = os.path.join(chromsave,chrom[:-4] + '_pairs.csv')
+            pairs = pd.DataFrame(columns = ['Name1','Start1','End1','Enzyme1','Site1',
+                                        'Name2','Star2t','End2','Enzyme2','Site2'])
+            row = zip(locmaps.iterrows(),repeat(shortestoverlap), repeat(longestoverlap), repeat(locmaps),repeat(cloneslistlength))
+            with multiprocessing.Pool(cpustouse) as p:
+                for result in p.imap_unordered(findPairs, row):
+                    pd.concat([pairs,result],ignore_index=True, axis=0)
+            pairs.to_csv(savepath, sep='\t')
