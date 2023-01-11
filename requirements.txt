@@ -1,7 +1,0 @@
-pandas
-biopython
-multiprocessing
-ast
-matplotlib
-ftplib
-
