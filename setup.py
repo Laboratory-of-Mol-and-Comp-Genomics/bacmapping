@@ -8,4 +8,10 @@ setup(name='bacmapping',
       author_email='ewinden@wisc.edu',
       license='',
       packages=['bacmapping'],
+      install_requires=[
+     	'pandas',
+	'biopython',
+	'multiprocess',
+	'matplotlib'
+	],
       zip_safe=False)
