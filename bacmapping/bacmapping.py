@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import math
 from itertools import repeat
 
-
 #Download files from the FTP server
 def getNewClones():
     #Set taxid and version (most recent human)
@@ -53,7 +52,6 @@ def getNewClones():
     #Get accessions of sequenced clones from clone_acstate
     seqdclones = pd.read_csv(cloneacstatepath, sep='\t')
     finseqclones = seqdclones[(seqdclones['Stdn']=='Y') & (seqdclones['CloneState']=='fin')]
-    #finseqclones = finseqclones.reset_index()
     finseqnames = finseqclones['CloneName'].unique()
     finseqaccs = finseqclones['Accession'].unique()
     finseqclones.to_csv(os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out'),sep='\t',index=False)
@@ -680,3 +678,69 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
                 for result in p.imap_unordered(findPairs, row):
                     pd.concat([pairs,result],ignore_index=True, axis=0)
             pairs.to_csv(savepath, sep='\t')
+            
+def getSequenceFromName(name):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+     #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
+    placedMaps = os.path.join(clonesMapsBase,'placed')
+    enzfile = os.path.join(cwd,'shortComm.csv')
+    
+    #set up important sequenced lists
+    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'.out')
+    sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
+    
+    #set up important placed lists
+    placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
+    ucname = version + '.unique_concordant.gff'
+    ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
+    placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
+    
+    #Open a shortened enzyme file, without isoschizomers
+    with open(enzfile,"r") as rit:
+        rite = csv.reader(rit, lineterminator = '\n', delimiter=",")
+        for row in rite:
+            shortC = row
+    global shortComm
+    shortComm = rst.RestrictionBatch(shortC)
+    
+    #Figure out the name
+    findLib = name[:name.find('-')]
+    seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
+    if len(seqdClone) > 0:
+        seqdCloneLine = seqdClone.iloc[0]
+        seqAcc = seqdCloneLine['Accession']
+        accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
+        if os.path.isfile(accPath) == False:
+            return('clone accession not found')
+        record_iter = SeqIO.parse(open(accPath), "fasta")
+        record = list(record_iter)[0]
+        seq = record.seq
+    else:
+        placedFile = placedLibs[findLib]
+        uccur = pd.read_csv(placedFile, sep='\t')
+        firstline = str(uccur.iloc[0]['attributes']).split(';')
+        cnames = [x[:x.find('=')] for x in firstline]
+        middles = [x.find('=') for x in firstline]
+        newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
+        newcols.columns = cnames
+        placedClones = pd.concat([uccur,newcols], axis=1)
+        placedCloneLine = placedClones[placedClones['Name']==name]
+        if len(placedCloneLine) > 0:
+            placedCloneLine = placedCloneLine.iloc[0]
+        else:
+            return('clone not found')
+        accPath = os.path.join(clonesSequences,placedCloneLine['seqid']+'.fasta')
+        if os.path.isfile(accPath) == False:
+            return('clone accession not found')
+        record_iter = SeqIO.parse(open(accPath), "fasta")
+        record = list(record_iter)[0]
+        seq = record.seq[placedCloneLine['start']:placedCloneLine['end']]
+    return(seq)
