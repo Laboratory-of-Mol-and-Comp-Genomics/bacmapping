@@ -6,7 +6,7 @@ setup(name='bacmapping',
       url='http://github.com/Ewinden/BACMapping',
       author='Eamon Winden',
       author_email='ewinden@wisc.edu',
-      license='',
+      license='MIT',
       packages=['bacmapping'],
       install_requires=[
      	'pandas',
