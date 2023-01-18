@@ -17,11 +17,12 @@ def getNewClones():
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
+    species = 'Homo_sapiens'
     
     #Setup names
     cloneacstate = 'clone_acstate_'+taxid+'.out'
     librarys = 'library_'+taxid+'.out'
-    ucname = version + '.unique_concordant.gff'    
+    ucnames = [version + '.unique_concordant.gff', version + '.unique_discordant.gff']    
 
     #Setup folders
     cwd = os.getcwd()
@@ -35,7 +36,7 @@ def getNewClones():
     #Login to NCBI FTP to download details files
     with FTP("ftp.ncbi.nih.gov") as ftp:
         ftp.login()
-        ftp.cwd('repository/clone/reports/Homo_sapiens/')
+        ftp.cwd('repository/clone/reports/'+species+'/')
         filenames = ftp.nlst()
         ucst = [x for x in filenames if ucname in x]
         downloads = ucst + [librarys,cloneacstate]
@@ -203,10 +204,10 @@ def mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_si
             file = os.path.join(folder, str(result['Chrom'])+'.csv')
             if os.path.isfile(file) == False:
                 with open(file, "a") as fwri:
-                    writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter=",", fieldnames = knames)
+                    writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter='\t', fieldnames = knames)
                     writer.writeheader()
             with open(file, "a") as fwri:
-                writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter=",", fieldnames = knames)
+                writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
                 writer.writerow(result)
 
 #Map the end-sequenced clones based on placement details
@@ -678,7 +679,8 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
                 for result in p.imap_unordered(findPairs, row):
                     pd.concat([pairs,result],ignore_index=True, axis=0)
             pairs.to_csv(savepath, sep='\t')
-            
+
+#get insert sequence of a BAC 
 def getSequenceFromName(name):
     #Set taxid and version (most recent human)
     version = '118'
@@ -691,7 +693,6 @@ def getSequenceFromName(name):
     clonesMapsBase = os.path.join(cwd,'maps')
     sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
     placedMaps = os.path.join(clonesMapsBase,'placed')
-    enzfile = os.path.join(cwd,'shortComm.csv')
     
     #set up important sequenced lists
     sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'.out')
@@ -703,15 +704,6 @@ def getSequenceFromName(name):
     ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
     placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
     
-    #Open a shortened enzyme file, without isoschizomers
-    with open(enzfile,"r") as rit:
-        rite = csv.reader(rit, lineterminator = '\n', delimiter=",")
-        for row in rite:
-            shortC = row
-    global shortComm
-    shortComm = rst.RestrictionBatch(shortC)
-    
-    #Figure out the name
     findLib = name[:name.find('-')]
     seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
     if len(seqdClone) > 0:
@@ -744,3 +736,151 @@ def getSequenceFromName(name):
         record = list(record_iter)[0]
         seq = record.seq[placedCloneLine['start']:placedCloneLine['end']]
     return(seq)
+
+#get sequence between start and end on a chromosome
+def getSequenceFromLoc(chrom,start,end):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
+    placedMaps = os.path.join(clonesMapsBase,'placed')
+    
+    #Sequence files
+    accessions = {}
+    for n in range(1,10):
+        accessions[str(n)] = 'NC_00000'+str(n)+'.'
+    for n in range(10,23):
+        accessions[str(n)] = 'NC_0000'+str(n)+'.'
+    accessions['X'] = 'NC_000023.'
+    accessions['Y'] = 'NC_000024.'
+    accession = accessions[str(chrom)]
+    accession = [x for x in os.listdir(clonesSequences) if accession in x]
+    if len(accession) == 0:
+        return('clone accession not found')
+    accession = accession[-1]
+    accPath = os.path.join(clonesSequences,accession)
+    record_iter = SeqIO.parse(open(accPath), "fasta")
+    record = list(record_iter)[0]
+    seq = record.seq[start:end]
+    return(seq)
+
+#get the maps of a specific BAC
+def getMapFromName(name):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
+    placedMaps = os.path.join(clonesMapsBase,'placed')
+    
+    #set up important sequenced lists
+    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
+    sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
+    
+    #set up important placed lists
+    placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
+    ucname = version + '.unique_concordant.gff'
+    ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
+    placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
+    
+    #get details
+    sequenced=False
+    findLib = name[:name.find('-')]
+    seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
+    if len(seqdClone) > 0:
+        cloneLine = seqdClone.iloc[0]
+        sequenced = True
+    else:
+        placedFile = placedLibs[findLib]
+        uccur = pd.read_csv(placedFile, sep='\t')
+        firstline = str(uccur.iloc[0]['attributes']).split(';')
+        cnames = [x[:x.find('=')] for x in firstline]
+        middles = [x.find('=') for x in firstline]
+        newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
+        newcols.columns = cnames
+        placedClones = pd.concat([uccur,newcols], axis=1)
+        placedCloneLine = placedClones[placedClones['Name']==name]
+        if len(placedCloneLine) > 0:
+            cloneLine = placedCloneLine.iloc[0]
+        else:
+            return('clone not found')
+    
+    #Get maps
+    if sequenced == True:
+        libPath = os.path.join(sequencedMaps,findLib)
+        if os.path.isdir(libPath) == False:
+            return('clone library not found')
+        mapPath = os.path.join(libPath, str(cloneLine['Chrom'])+'.csv')
+        if os.path.isfile(mapPath) == False:
+            return('clone not found')
+        mapsList = pd.read_csv(mapPath, sep='\t')
+        singMap = mapsList[mapsList['Name'] == name]
+        if len(singMap) == 0:
+            return('clone not found')
+        if len(singMap) > 1:
+            singMap = singMap.iloc[0]
+        return((cloneLine,singMap))
+    else:
+        libPath = os.path.join(placedMaps,findLib)
+        if os.path.isdir(libPath) == False:
+            return('clone library not found')
+        accPath = os.path.join(clonesSequences,cloneLine['seqid']+'.fasta')
+        if os.path.isfile(accPath) == False:
+            return('clone accession not found')
+        record_iter = SeqIO.parse(open(accPath), "fasta")
+        record = list(record_iter)[0]
+        de = record.description
+        curChrom = de[de.find('chromosome ')+11:de.find(',')]
+        print(curChrom)
+        mapPath = os.path.join(libPath, str(curChrom)+'.csv')
+        print(mapPath)
+        if os.path.isfile(mapPath) == False:
+            return('clone not found')
+        mapsList = pd.read_csv(mapPath, sep='\t')
+        singMap = mapsList[mapsList['Name'] == name]
+        if len(singMap) == 0:
+            return('clone not found')
+        if len(singMap) > 1:
+            singMap = singMap.iloc[0]
+        return((cloneLine,singMap))
+
+#get all the maps between a start and end on a chromosome
+def getMapsFromLoc(chrom,start,end, inclusive=True):
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesMapsBase = os.path.join(cwd,'maps')
+    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
+    placedMaps = os.path.join(clonesMapsBase,'placed')
+    
+    #Get sequenced maps
+    maps = pd.DataFrame()
+    for lib in os.listdir(placedMaps):
+        mapPath = os.path.join(os.path.join(placedMaps,lib),str(chrom)+'.csv')
+        if os.path.isfile(mapPath) == False:
+            continue
+        mapsList = pd.read_csv(mapPath, sep='\t')
+        if inclusive == True:
+            newmaps = mapsList[mapsList['Start'].astype(int) < int(end)] 
+            newmaps = newmaps[newmaps['End'].astype(int) > int(start)]
+        else:
+            mapsStart = mapsList[mapsList['Start'].astype(int) < int(start)]
+            mapsEnd = mapsStart[mapsList['End'].astype(int) > int(end)]
+        maps = pd.concat([maps, newmaps], ignore_index = True)
+    return(maps)
