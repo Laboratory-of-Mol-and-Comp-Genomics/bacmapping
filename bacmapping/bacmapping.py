@@ -7,13 +7,15 @@ from Bio import SeqIO
 from Bio import Entrez
 from Bio import Restriction as rst
 import multiprocessing
+from multiprocessing import get_context
 import ast
 import matplotlib.pyplot as plt
 import math
 from itertools import repeat
+from shutil import rmtree
 
 #Download files from the FTP server
-def getNewClones():
+def getNewClones(download = True):
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
@@ -22,7 +24,7 @@ def getNewClones():
     #Setup names
     cloneacstate = 'clone_acstate_'+taxid+'.out'
     librarys = 'library_'+taxid+'.out'
-    ucnames = [version + '.unique_concordant.gff', version + '.unique_discordant.gff']    
+    ucname = version + '.unique_'  
 
     #Setup folders
     cwd = os.getcwd()
@@ -32,7 +34,7 @@ def getNewClones():
         os.mkdir(clonesDetails)
     if os.path.isdir(clonesSequences) == False:
         os.mkdir(clonesSequences)
-
+    '''
     #Login to NCBI FTP to download details files
     with FTP("ftp.ncbi.nih.gov") as ftp:
         ftp.login()
@@ -43,12 +45,15 @@ def getNewClones():
         for f in downloads:
             p = os.path.join(clonesDetails,f)
             if os.path.exists(p) == False:
-                ftp.retrbinary("RETR " + f ,open(clonesDetails + f, 'wb').write)
+                ftp.retrbinary("RETR " + f ,open(p, 'wb').write)
+    '''
+    ucst = os.listdir(clonesDetails)
                 
     #Get accession list
     cloneacstatepath = os.path.join(clonesDetails,cloneacstate)
     libraryspath = os.path.join(clonesDetails,librarys)
     ucstpaths= [os.path.join(clonesDetails,x) for x in ucst]
+    ucstlibs = list(set([uc[:uc.find('_')] for uc in ucst if ('unique' in uc)]))
     
     #Get accessions of sequenced clones from clone_acstate
     seqdclones = pd.read_csv(cloneacstatepath, sep='\t')
@@ -57,20 +62,27 @@ def getNewClones():
     finseqaccs = finseqclones['Accession'].unique()
     finseqclones.to_csv(os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out'),sep='\t',index=False)
     
-    #Split unique_concordant files into a header and details
-    for uc in ucstpaths:
-        ucinfo = uc + '.info.txt'
-        if os.path.exists(ucinfo) == True:
-            continue
-        lines = open(uc).readlines()
-        with open(ucinfo, 'w') as ui:
-            ui.writelines(lines[:7])
-        with open(uc, 'w') as ci:
-            ci.writelines(['seqid\tsource\ttype\tstart\tend\tscore\tstrand\tphase\tattributes']+lines[7:])
+    #Split unique files into a header and details
+    nucpaths = []
+    for lib in ucstlibs:
+        ucs = [x for x in ucstpaths if lib in x]
+        tlines = []
+        ucu = ucs[0][:ucs[0].find('unique')]+'unique.gff'
+        nucpaths.append(ucu)
+        for uc in ucs:
+            ucinfo = uc + '.info.txt'
+            lines = open(uc).readlines()
+            with open(ucinfo, 'w') as ui:
+                ui.writelines(lines[:7])
+            tlines += lines[8:]
+        with open(ucu, 'w') as ci:
+            ci.writelines(['seqid\tsource\ttype\tstart\tend\tscore\tstrand\tphase\tattributes\n']+tlines)
+        for uc in ucs:
+            os.remove(uc)
             
     #Get accessions for placed clones
     allplacedaccs = []
-    for uc in ucstpaths:
+    for uc in nucpaths:
         uccur = pd.read_csv(uc, sep='\t')
         plasecaccs = uccur['seqid'].unique()
         [allplacedaccs.append(x) for x in list(plasecaccs) if x not in allplacedaccs]
@@ -85,14 +97,15 @@ def getNewClones():
         accessions.writelines('\n'.join(finseqaccs) + '\n')
         
     #Download all sequences
-    Entrez.email = "student@wisc.edu"  # Always tell NCBI who you are
-    for accession in allaccs:
-        save = os.path.join(clonesSequences,accession+'.fasta')
-        net_handle = Entrez.efetch(db="nucleotide", id=accession, rettype="fasta", retmode="text")
-        out_handle = open(save, "w")
-        out_handle.write(net_handle.read())
-        out_handle.close()
-        net_handle.close()
+    if download == True:
+        Entrez.email = "student@wisc.edu"  # Always tell NCBI who you are
+        for accession in allaccs: #allplacedaccs for only placed
+            save = os.path.join(clonesSequences,accession+'.fasta')
+            net_handle = Entrez.efetch(db="nucleotide", id=accession, rettype="fasta", retmode="text")
+            out_handle = open(save, "w")
+            out_handle.write(net_handle.read())
+            out_handle.close()
+            net_handle.close()
 
 #Get only BAC libraries        
 def narrowDownLibraries():
@@ -194,21 +207,23 @@ def mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_si
     row = zip(sequencedClones['CloneName'], sequencedClones['Chrom'], sequencedClones['start'],
               sequencedClones['SeqLen'], sequencedClones['Accession'], sequencedClones['LibAbbr'],
              repeat(maxcuts), repeat(clonesSequences))
-    with multiprocessing.Pool(cpustouse) as p:
-        for result in p.imap_unordered(getCuts, row):
-            if result == 'NoA':
-                continue
-            folder = os.path.join(clonesMaps, result['Library'])
-            if os.path.isdir(folder) == False:
-                os.mkdir(folder)
-            file = os.path.join(folder, str(result['Chrom'])+'.csv')
-            if os.path.isfile(file) == False:
-                with open(file, "a") as fwri:
-                    writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter='\t', fieldnames = knames)
-                    writer.writeheader()
+    p = get_context("spawn").Pool(cpustouse)
+    for result in p.imap_unordered(getCuts, row):
+        if result == 'NoA':
+            continue
+        folder = os.path.join(clonesMaps, result['Library'])
+        if os.path.isdir(folder) == False:
+            os.mkdir(folder)
+        file = os.path.join(folder, str(result['Chrom'])+'.csv')
+        if os.path.isfile(file) == False:
             with open(file, "a") as fwri:
-                writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
-                writer.writerow(result)
+                writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter='\t', fieldnames = knames)
+                writer.writeheader()
+        with open(file, "a") as fwri:
+            writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
+            writer.writerow(result)
+    p.close()
+    p.join()
 
 #Map the end-sequenced clones based on placement details
 def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500):
@@ -229,7 +244,7 @@ def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=
         os.mkdir(clonesMaps)
     
     #set up important files to map and get details
-    placedClonesDetailFs = [x for x in os.listdir(clonesDetails) if x[-3:] == 'gff']
+    placedClonesDetailFs = [x for x in os.listdir(clonesDetails) if 'unique.gff' in x]
     included_libraries = os.path.join(clonesDetails,'includedLibraries.csv')
     if include_libraries == True:
         with open(included_libraries) as incl:
@@ -244,36 +259,33 @@ def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=
     global shortComm
     shortComm = rst.RestrictionBatch(shortC)
     knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
-    
-    #get the location to return to if necesary
-    startline = 0
-    startlibf = os.path.join((clonesMaps),'current_library.txt')
-    startchunkf = os.path.join(clonesMaps,'current_chunk.txt')
-    if os.path.isfile(startlibf) == True and os.path.isfile(startchunkf) == True:
-        with open(startlibf, 'r') as sli:
-            startlib = sli.read()
-        startlibn = placedClonesDetailFs.index(startlib)
-        with open(startchunkf, 'r') as chi:
-            startchunk = chi.read()
-            startchunk = int(startchunk)
-
-        first = True
-    else:
-        startlibn = 0
-        first = False
 
     #make a list based on the clone libraries to include
-    cPlacedClonesDetailFs= placedClonesDetailFs.copy()
     if include_libraries == True:
         cPlacedClonesDetailFs=[]
         for pCD in placedClonesDetailFs[startlibn:]:
             library = pCD[:pCD.find('.')]
             if library in included_list:
                 cPlacedClonesDetailFs.append(pCD)
+    else:
+        cPlacedClonesDetailFs= placedClonesDetailFs.copy()
+        
+    #get the location to return to if necesary
+    startlibf = os.path.join((clonesMaps),'current_library.txt')
+    if os.path.isfile(startlibf) == True:
+        with open(startlibf, 'r') as sli:
+            startlib = sli.read()
+        skips = os.listdir(clonesMaps)
+        nPlacedClonesDetailFs = [x[:x.find('.')] for x in cPlacedClonesDetailFs if x not in skips]
+        nPlacedClonesDetailFs.insert(0, startLib)
+        #rmtree(os.path.join(clonesMaps,startLib))
+    else:
+        skips = []
+        nPlacedClonesDetailFs = cPlacedClonesDetailFs.copy()
 
     #loop through libaries, loop through chunks clones, process them
-    print(str(len(cPlacedClonesDetailFs)) + ' libraries')
-    for pCD in cPlacedClonesDetailFs[startlibn:]:
+    print(str(len(nPlacedClonesDetailFs)) + ' libraries')
+    for pCD in nPlacedClonesDetailFs[startlibn:]:
         library = pCD[:pCD.find('.')]
         folder = os.path.join(clonesMaps, library)
         with open(os.path.join(startlibf), 'w') as libri:
@@ -293,11 +305,7 @@ def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=
         if stahp == True:
             continue
         chunknum = 0
-        if first == True:
-            first = False
-            startline = chunk_size * startchunk
-        for placedClones in pd.read_csv(fpCD, sep='\t', chunksize=chunk_size, skiprows = startline): #load chunk_size many lines
-            startline = 0
+        for placedClones in pd.read_csv(fpCD, sep='\t', chunksize=chunk_size): #load chunk_size many lines
             print(str(library)+', '+str(chunknum) + ', ' + str(len(placedClones)))
             with open(os.path.join(startchunkf), 'w') as chri:
                 chri.write(str(chunknum))
@@ -320,18 +328,20 @@ def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=
                 row = zip(oneSeqPlacedClones['Name'],repeat(curChrom),oneSeqPlacedClones['start'],
                           oneSeqPlacedClones['end'],oneSeqPlacedClones['seqid'],repeat(library),
                          repeat(maxcuts), repeat(clonesSequences))
-                with multiprocessing.Pool(cpustouse) as p:
-                    for result in p.imap_unordered(getCuts, (row)):
-                        if result == 'NoA':
-                            continue
-                        file = os.path.join(folder, curChrom+'.csv')
-                        if os.path.isfile(file) == False:
-                            with open(file, "w") as fwri:
-                                writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
-                                writer.writeheader()
-                        with open(file, "a") as fwri:
+                p =  get_context("spawn").Pool(cpustouse)
+                for result in p.imap_unordered(getCuts, (row)):
+                    if result == 'NoA':
+                        continue
+                    file = os.path.join(folder, curChrom+'.csv')
+                    if os.path.isfile(file) == False:
+                        with open(file, "w") as fwri:
                             writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
-                            writer.writerow(result)
+                            writer.writeheader()
+                    with open(file, "a") as fwri:
+                        writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
+                        writer.writerow(result)
+                p.close()
+                p.join()
     os.remove(startlibf)
     os.remove(startchunkf)
 
@@ -675,9 +685,11 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
             pairs = pd.DataFrame(columns = ['Name1','Start1','End1','Enzyme1','Site1',
                                         'Name2','Star2t','End2','Enzyme2','Site2'])
             row = zip(locmaps.iterrows(),repeat(shortestoverlap), repeat(longestoverlap), repeat(locmaps),repeat(cloneslistlength))
-            with multiprocessing.Pool(cpustouse) as p:
-                for result in p.imap_unordered(findPairs, row):
-                    pd.concat([pairs,result],ignore_index=True, axis=0)
+            p = get_context("spawn").Pool(cpustouse)
+            for result in p.imap_unordered(findPairs, row):
+                pd.concat([pairs,result],ignore_index=True, axis=0)
+            p.close()
+            p.join()
             pairs.to_csv(savepath, sep='\t')
 
 #get insert sequence of a BAC 
@@ -700,7 +712,7 @@ def getSequenceFromName(name):
     
     #set up important placed lists
     placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
-    ucname = version + '.unique_concordant.gff'
+    ucname = version + '.unique_'
     ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
     placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
     
@@ -790,7 +802,7 @@ def getMapFromName(name):
     
     #set up important placed lists
     placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
-    ucname = version + '.unique_concordant.gff'
+    ucname = version + '.unique_'
     ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
     placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
     
