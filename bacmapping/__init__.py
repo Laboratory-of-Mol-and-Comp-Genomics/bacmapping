@@ -3,5 +3,5 @@ from .bacmapping import (
 	getCuts, mapSequencedClones, mapPlacedClones, drawMap,
 	countPlacedBACs, splitAttributes, getCoverage, getAverageLength,
 	getSequencedClonesStats, onlySingleCutters, findPairs, makePairs,
-	getSequenceFromName, getSequenceFromLoc, getMapFromName, getMapsFromLoc
-	)
+	getRow, getSequenceFromName, getSequenceFromLoc,
+	getMapFromName, getMapsFromLoc
