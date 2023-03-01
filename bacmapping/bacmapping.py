@@ -60,8 +60,10 @@ shortC = ['AanI', 'AarI', 'AbaSI', 'AbsI', 'Acc36I', 'AccB7I',
 shortComm = rst.RestrictionBatch(shortC)
 
 
-#Download files from the FTP server
 def getNewClones(download = True):
+    """Download files from the FTP server
+    download = True
+        whether or not to download the files found on the ftp server"""
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
@@ -152,9 +154,9 @@ def getNewClones(download = True):
             out_handle.write(net_handle.read())
             out_handle.close()
             net_handle.close()
-
-#Get only BAC libraries        
+        
 def narrowDownLibraries():
+    """Generates a file with only BAC libraries"""
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
