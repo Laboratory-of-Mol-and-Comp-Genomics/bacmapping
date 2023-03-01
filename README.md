@@ -123,7 +123,7 @@ Once the database is established, running python with bacmapping installed from 
 ## Authors
 This project was produced in the Laboratory of Molecular and Computational Genomics at University of Wisconsin- Madison
     
-Eamon Winden - ewinden@wisc.edu 
+Eamon Winden - ewinden@wisc.edu         
 Alejandro Vasquez-Acheverri provided guidance in git, multiprocessing, python, ssh...
 
 ## License
