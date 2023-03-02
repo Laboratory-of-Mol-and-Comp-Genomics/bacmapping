@@ -60,10 +60,8 @@ shortC = ['AanI', 'AarI', 'AbaSI', 'AbsI', 'Acc36I', 'AccB7I',
 shortComm = rst.RestrictionBatch(shortC)
 
 
+#Download files from the FTP server
 def getNewClones(download = True):
-    """Download files from the FTP server
-    download = True
-        whether or not to download the files found on the ftp server"""
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
@@ -154,9 +152,9 @@ def getNewClones(download = True):
             out_handle.write(net_handle.read())
             out_handle.close()
             net_handle.close()
-        
+
+#Get only BAC libraries        
 def narrowDownLibraries():
-    """Generates a file with only BAC libraries"""
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
@@ -747,11 +745,7 @@ def getRow(name):
      #Prep folders
     cwd = os.getcwd()
     clonesDetails = os.path.join(cwd,'details')
-    clonesSequences = os.path.join(cwd,'sequences')
-    clonesMapsBase = os.path.join(cwd,'maps')
-    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
-    placedMaps = os.path.join(clonesMapsBase,'placed')
-    
+
     #set up important sequenced lists
     sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'.out')
     sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
@@ -780,167 +774,117 @@ def getRow(name):
         if len(placedCloneLine) > 0:
             placedCloneLine = placedCloneLine.iloc[0]
         else:
-            return('clone not found')
+            raise NameError('clone not found')
         row = [placedCloneLine,'placed']
     return(row)
 
-#get insert sequence of a BAC 
-def getSequenceFromName(name):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    
-     #Prep folders
+#get insert sequence from row
+def getSequence(row, local):
+#Prep folders
     cwd = os.getcwd()
-    clonesDetails = os.path.join(cwd,'details')
     clonesSequences = os.path.join(cwd,'sequences')
     clonesMapsBase = os.path.join(cwd,'maps')
-    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
-    placedMaps = os.path.join(clonesMapsBase,'placed')
-    findLib = name[:name.find('-')]
 
-    #return the row
-    row, local = getRow(name)
     if local == 'sequenced':
         seqAcc = row['Accession']
         accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
         if os.path.isfile(accPath) == False:
-            return('clone accession not found')
+            raise NameError('clone accession not found')
         record_iter = SeqIO.parse(open(accPath), "fasta")
         record = list(record_iter)[0]
         seq = record.seq
     else:
         accPath = os.path.join(clonesSequences,row['seqid']+'.fasta')
         if os.path.isfile(accPath) == False:
-            return('clone accession not found')
+            raise NameError('clone accession not found')
         record_iter = SeqIO.parse(open(accPath), "fasta")
         record = list(record_iter)[0]
         seq = record.seq[row['start']:row['end']]
     return(seq)
 
-def getMapFromName(name):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    
-     #Prep folders
+#get map from row
+def getMap(cloneLine,local):
+    #Prep folders
     cwd = os.getcwd()
-    clonesDetails = os.path.join(cwd,'details')
     clonesSequences = os.path.join(cwd,'sequences')
     clonesMapsBase = os.path.join(cwd,'maps')
     sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
     placedMaps = os.path.join(clonesMapsBase,'placed')
+    
+    name = cloneLine['Name']
     findLib = name[:name.find('-')]
-
-    #return the row
-    cloneLine, local = getRow(name)
 
     if local == 'sequenced':
         libPath = os.path.join(sequencedMaps,findLib)
         if os.path.isdir(libPath) == False:
-            return('clone library not found')
+            raise NameError('clone library not found')
         mapPath = os.path.join(libPath, str(cloneLine['Chrom'])+'.csv')
         if os.path.isfile(mapPath) == False:
-            return('clone not found')
+            raise NameError('clone not found')
         mapsList = pd.read_csv(mapPath, sep='\t')
         singMap = mapsList[mapsList['Name'] == name]
         if len(singMap) == 0:
-            return('clone not found')
+            raise NameError('clone not found')
         if len(singMap) > 1:
             singMap = singMap.iloc[0]
         return((cloneLine,singMap))
     else:
         libPath = os.path.join(placedMaps,findLib)
         if os.path.isdir(libPath) == False:
-            return('clone library not found')
+            raise NameError('clone library not found')
         accPath = os.path.join(clonesSequences,cloneLine['seqid']+'.fasta')
         if os.path.isfile(accPath) == False:
-            return('clone accession not found')
+            raise NameError('clone accession not found')
         record_iter = SeqIO.parse(open(accPath), "fasta")
         record = list(record_iter)[0]
         de = record.description
         curChrom = de[de.find('chromosome ')+11:de.find(',')]
         mapPath = os.path.join(libPath, str(curChrom)+'.csv')
         if os.path.isfile(mapPath) == False:
-            return('clone not found')
-        mapsList = pd.read_csv(mapPath, sep='\t')
+            raise NameError('clone not found')
+        mapsList = pd.read_csv(mapPath, sep='\t', low_memory=False)
         singMap = mapsList[mapsList['Name'] == name]
         if len(singMap) == 0:
-            return('clone not found')
+            raise NameError('clone not found')
         if len(singMap) > 1:
             singMap = singMap.iloc[0]
-        return((cloneLine,singMap))
+        return(singMap)
 
-#get insert sequence of a BAC 
-def getSequenceFromNameOld(name):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    
-     #Prep folders
-    cwd = os.getcwd()
-    clonesDetails = os.path.join(cwd,'details')
-    clonesSequences = os.path.join(cwd,'sequences')
-    clonesMapsBase = os.path.join(cwd,'maps')
-    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
-    placedMaps = os.path.join(clonesMapsBase,'placed')
-    
-    #set up important sequenced lists
-    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'.out')
-    sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
-    
-    #set up important placed lists
-    placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
-    ucname = version + '.unique.gff'
-    ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
-    placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
+#get single enzyme, checking for isoschizomers
+def getRightIsoschizomer(enzyme):
+    renzyme = eval('rst.'+enzyme)
+    isoschizomers = renzyme.isoschizomers()
+    if enzyme not in shortC:
+        for en in isoschizomers:
+            if str(en) in shortC:
+                enzyme = str(en)
+                renzyme = en
+    return(enzyme,renzyme)
 
-    findLib = name[:name.find('-')]
-    seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
-    if len(seqdClone) > 0:
-        seqdCloneLine = seqdClone.iloc[0]
-        seqAcc = seqdCloneLine['Accession']
-        accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
-        if os.path.isfile(accPath) == False:
-            return('clone accession not found')
-        record_iter = SeqIO.parse(open(accPath), "fasta")
-        record = list(record_iter)[0]
-        seq = record.seq
-    else:
-        placedFile = placedLibs[findLib]
-        uccur = pd.read_csv(placedFile, sep='\t')
-        firstline = str(uccur.iloc[0]['attributes']).split(';')
-        cnames = [x[:x.find('=')] for x in firstline]
-        middles = [x.find('=') for x in firstline]
-        newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
-        newcols.columns = cnames
-        placedClones = pd.concat([uccur,newcols], axis=1)
-        placedCloneLine = placedClones[placedClones['Name']==name]
-        if len(placedCloneLine) > 0:
-            placedCloneLine = placedCloneLine.iloc[0]
-        else:
-            return('clone not found')
-        accPath = os.path.join(clonesSequences,placedCloneLine['seqid']+'.fasta')
-        if os.path.isfile(accPath) == False:
-            return('clone accession not found')
-        record_iter = SeqIO.parse(open(accPath), "fasta")
-        record = list(record_iter)[0]
-        seq = record.seq[placedCloneLine['start']:placedCloneLine['end']]
-    return(seq)
+#return restriction map for single enzyme
+def getRestrictionMap(name,enzyme):
+    row, local = getRow(name)
+    maps = getMap(row, local)
+    nenzyme, r = getRightIsoschizomer(enzyme)
+    return(maps[nenzyme])
+
+#get insert sequence of a BAC from name
+def getSequenceFromName(name):
+    row, local = getRow(name)
+    sequence = getSequence(row,local)
+    return(sequence)
+
+#get map list from name
+def getMapFromName(name):
+    row, local = getRow(name)
+    map = getMap(row, local)
+    return(map)
 
 #get sequence between start and end on a chromosome
 def getSequenceFromLoc(chrom,start,end):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    
     #Prep folders
     cwd = os.getcwd()
-    clonesDetails = os.path.join(cwd,'details')
     clonesSequences = os.path.join(cwd,'sequences')
-    clonesMapsBase = os.path.join(cwd,'maps')
-    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
-    placedMaps = os.path.join(clonesMapsBase,'placed')
     
     #Sequence files
     accessions = {}
@@ -953,111 +897,20 @@ def getSequenceFromLoc(chrom,start,end):
     accession = accessions[str(chrom)]
     accession = [x for x in os.listdir(clonesSequences) if accession in x]
     if len(accession) == 0:
-        return('clone accession not found')
+        raise NameError('clone accession not found')
     accession = accession[-1]
     accPath = os.path.join(clonesSequences,accession)
     record_iter = SeqIO.parse(open(accPath), "fasta")
     record = list(record_iter)[0]
     seq = record.seq[start:end]
     return(seq)
-
-#get the maps of a specific BAC
-def getMapFromNameOld(name):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
     
-    #Prep folders
-    cwd = os.getcwd()
-    clonesDetails = os.path.join(cwd,'details')
-    clonesSequences = os.path.join(cwd,'sequences')
-    clonesMapsBase = os.path.join(cwd,'maps')
-    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
-    placedMaps = os.path.join(clonesMapsBase,'placed')
-    
-    #set up important sequenced lists
-    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
-    sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
-    
-    #set up important placed lists
-    placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
-    ucname = version + '.unique_'
-    ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
-    placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
-    
-    #get details
-    sequenced=False
-    findLib = name[:name.find('-')]
-    seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
-    if len(seqdClone) > 0:
-        cloneLine = seqdClone.iloc[0]
-        sequenced = True
-    else:
-        placedFile = placedLibs[findLib]
-        uccur = pd.read_csv(placedFile, sep='\t')
-        firstline = str(uccur.iloc[0]['attributes']).split(';')
-        cnames = [x[:x.find('=')] for x in firstline]
-        middles = [x.find('=') for x in firstline]
-        newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
-        newcols.columns = cnames
-        placedClones = pd.concat([uccur,newcols], axis=1)
-        placedCloneLine = placedClones[placedClones['Name']==name]
-        if len(placedCloneLine) > 0:
-            cloneLine = placedCloneLine.iloc[0]
-        else:
-            return('clone not found')
-    
-    #Get maps
-    if sequenced == True:
-        libPath = os.path.join(sequencedMaps,findLib)
-        if os.path.isdir(libPath) == False:
-            return('clone library not found')
-        mapPath = os.path.join(libPath, str(cloneLine['Chrom'])+'.csv')
-        if os.path.isfile(mapPath) == False:
-            return('clone not found')
-        mapsList = pd.read_csv(mapPath, sep='\t')
-        singMap = mapsList[mapsList['Name'] == name]
-        if len(singMap) == 0:
-            return('clone not found')
-        if len(singMap) > 1:
-            singMap = singMap.iloc[0]
-        return((cloneLine,singMap))
-    else:
-        libPath = os.path.join(placedMaps,findLib)
-        if os.path.isdir(libPath) == False:
-            return('clone library not found')
-        accPath = os.path.join(clonesSequences,cloneLine['seqid']+'.fasta')
-        if os.path.isfile(accPath) == False:
-            return('clone accession not found')
-        record_iter = SeqIO.parse(open(accPath), "fasta")
-        record = list(record_iter)[0]
-        de = record.description
-        curChrom = de[de.find('chromosome ')+11:de.find(',')]
-        print(curChrom)
-        mapPath = os.path.join(libPath, str(curChrom)+'.csv')
-        print(mapPath)
-        if os.path.isfile(mapPath) == False:
-            return('clone not found')
-        mapsList = pd.read_csv(mapPath, sep='\t')
-        singMap = mapsList[mapsList['Name'] == name]
-        if len(singMap) == 0:
-            return('clone not found')
-        if len(singMap) > 1:
-            singMap = singMap.iloc[0]
-        return((cloneLine,singMap))
 
 #get all the maps between a start and end on a chromosome
 def getMapsFromLoc(chrom,start,end, inclusive=True):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    
     #Prep folders
     cwd = os.getcwd()
-    clonesDetails = os.path.join(cwd,'details')
-    clonesSequences = os.path.join(cwd,'sequences')
     clonesMapsBase = os.path.join(cwd,'maps')
-    sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
     placedMaps = os.path.join(clonesMapsBase,'placed')
     
     #Get sequenced maps
@@ -1071,15 +924,18 @@ def getMapsFromLoc(chrom,start,end, inclusive=True):
             newmaps = mapsList[mapsList['Start'].astype(int) < int(end)] 
             newmaps = newmaps[newmaps['End'].astype(int) > int(start)]
         else:
-            mapsStart = mapsList[mapsList['Start'].astype(int) < int(start)]
-            mapsEnd = mapsStart[mapsList['End'].astype(int) > int(end)]
+            newmaps = mapsList[mapsList['Start'].astype(int) < int(start)]
+            newmaps = newmaps[mapsList['End'].astype(int) > int(end)]
         maps = pd.concat([maps, newmaps], ignore_index = True)
     return(maps)
 
+
 #Draw a circular or linear map of an enzyme
 def drawMap(name,enzyme,circular = False):
-    info, row = getMapFromName(name)
+    row = getMapFromName(name)
     nums = ast.literal_eval(list(row[enzyme])[0])
+    if nums == 'NaN':
+        raise NameError('map has too many cuts')
     totallength = int(row['End']) - int(row['Start'])
     enz = eval('rst.'+enzyme)
     figure, axes = plt.subplots()
