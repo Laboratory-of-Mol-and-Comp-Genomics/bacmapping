@@ -4,4 +4,6 @@ from .bacmapping import (
 	countPlacedBACs, splitAttributes, getCoverage, getAverageLength,
 	getSequencedClonesStats, onlySingleCutters, findPairs, makePairs,
 	getRow, getSequenceFromName, getSequenceFromLoc,
-	getMapFromName, getMapsFromLoc)
+	getMapFromName, getMapsFromLoc, getMap, getSequence, 
+    	getRestrictionMap, getRightIsoschizomer
+	)
