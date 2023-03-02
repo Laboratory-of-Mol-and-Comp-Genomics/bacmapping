@@ -76,6 +76,9 @@ splitAttributes(ser)
 openSeqgetCuts(row)    
     Given a row, opens the sequence and returns all the restriction maps. This has been deprecated in the primary path, but could be useful
     
+getRightIsoschizomer(ezyme)
+    Given an enzyme name, returns the enzyme name and Bio.restriction class which corresponds to the isoschizomer which is in the database
+    
 getRow(name)
     Given the name of a BAC, tries to return the set of restriction maps for that BAC
         name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
@@ -98,6 +101,9 @@ getMapFromName(name)
 getMapsFromLoc(chrom,start,end, inclusive=True)
     Given a chromosome, start and end location, returns all the maps in that region
         inclusive determines whether BACs that overlap the start and end locations should be included
+        
+getRestrictionMap(name, enzyme)
+    Given the name of a BAC and an enzyme, returns the cut locations for that pair
 
 ## Use
 Ensure you are on a computer/ server that can handle a large throughput and can be left for some time to download/ process everything as well as some space to save the database.
