@@ -103,7 +103,7 @@ getMapsFromLoc(chrom,start,end, inclusive=True)
         inclusive determines whether BACs that overlap the start and end locations should be included
         
 getRestrictionMap(name, enzyme)
-    Given the name of a BAC and an enzyme, returns the cut locations for that pair
+    Given the name of a BAC and an enzyme, returns the cut locations
 
 ## Use
 Ensure you are on a computer/ server that can handle a large throughput and can be left for some time to download/ process everything as well as some space to save the database.
