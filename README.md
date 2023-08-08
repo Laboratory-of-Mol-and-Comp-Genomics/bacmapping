@@ -72,10 +72,6 @@ pip install -e .
 - getRightIsoschizomer(ezyme)
   - Given an enzyme name, returns the enzyme name and Bio.restriction class which corresponds to the isoschizomer which is in the database
     
-- getRow(name)
-  - Given the name of a BAC, tries to return the set of restriction maps for that BAC
-    - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
-    
 - drawMap(name, enzyme, circular=False)
   - Given the name of a BAC and an enzyme, draws a map
     - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
@@ -101,7 +97,7 @@ pip install -e .
     - chrom is the chromosome to pull from
     - start is the location of the first base in the chromosome sequence
     - end is the location of the base after the last base in the chromosome sequence
-    - inclusive determines whether BACs that overlap the start and end locations should be included
+    - inclusive determines whether BACs that overlap the start and end locations but are not wholely inside the range should be included (True means yes)
         
 - getRestrictionMap(name, enzyme)
   - Given the name of a BAC and an enzyme, returns the cut locations
@@ -109,8 +105,12 @@ pip install -e .
     - enzyme is a string of the enzyme name, such as "HindIII"
 
 ### Internal functions
+- getRow(name)
+  - Given the name of a BAC, tries to return the set of restriction maps for that BAC
+    - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
+
 - splitAttributesWithMids(Ser,middles)
-  - An internal function required to split the weird way details are given
+  - required to split the weird way details are given
     
 - getCuts(row)
   - Given a row from the mapping functions, returns all the restriction maps
