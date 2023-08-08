@@ -5,18 +5,30 @@ This is a set of tools used in production and exploration of bacterial artificia
 This dataset is kept at gigaDB at , it can also be built locally using the scripts in installing
 
 ## Installation
-Install from this github repository on Linux
-This package requires
+
+We recommend to create a new enviroment
+
+```bash
+conda create -n bacmapping
+conda activate bacmapping
+```
+
+This package requires:
 numpy
 pandas
 Biopython
 matplotlib
-ast
+
+```bash
+conda install -c conda-forge pandas biopython multiprocess matplotlib
+```
+
+Then clone and install this github repository on Linux
 
 ```bash
 git clone https://github.com/Ewinden/bacmapping/
 cd bacmapping
-sudo pip install -e .
+pip install -e .
 ```
 
 ## Functions
@@ -118,7 +130,7 @@ bacmapping.mapSequencedClones() # include cpustouse=n to use more cores on a ser
 bacmapping.mapPlacedClones() # include cpustouse=n to use more cores on a server or computer, include chunk_size=n to use more memory and go faster
 ```
 
-These functions will download and generate the database locally in a set of folders
+These functions will download and generate the database locally in a set of folders. Further examples on the use of Bacmapping can be found in the jupiter notebook located in the examples folder.
 
 ## Using the database
 Once the database is generated, or on the gigaDB database, restriction maps are saved first by type(insert-sequenced in sequenced or end-sequenced in placed) then library, then chromosome
