@@ -158,7 +158,7 @@ bacmapping.makePairs() # include cpustouse=n to use more cores on a server or co
 ```
 
 
-Further examples on the use of Bacmapping can be found in the jupiter notebook located in the examples folder.
+Further examples on the use of Bacmapping can be found in the Jupyter notebook located in the examples folder.
 
 ## Using the database
 Once the database is generated, or on the gigaDB database, restriction maps are saved first by type(insert-sequenced in sequenced or end-sequenced in placed) then library, then chromosome. Within the database are an initial set of folders and csv files, the csv files include statistics regarding the database. The details folder contains data directly downloaded from CloneDB and modified to move headers out of the files. The sequences folder contains all of the sequences included in the downloaded CloneDB files. Each chromosome csv is actually a tsv where each line is an individual BAC along with details for the BAC and then the set of cut sites for each enzyme included. Regarding cut sites, entries are either empty ([]) meaning there are no cutsites, overflow (NA) meaning the enzyme cuts more than 50 times in the BAC, or a python formatted list [145,2352,6546] where each cut site is included in the list. If an enzyme you want isn't there, check for the isoschizomers of the enzyme, the database doesn't have all the isoschizomers to save space and time. Once the database is established, running python with bacmapping installed from the parent folder of the database gives the user access to the analysis scripts detailed above
