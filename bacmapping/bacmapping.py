@@ -332,10 +332,6 @@ def mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=
     #Open a shortened enzyme file, without isoschizomers
     knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
     
-    with open('/home/eamon/BACPlay/longboys.csv', "w") as fwri:
-        writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter="\t", fieldnames = knames)
-        writer.writeheader()
-    
     #make a list based on the clone libraries to include
     if include_libraries == True:
         cPlacedClonesDetailFs=[]
@@ -811,7 +807,7 @@ def getMap(cloneLine,local):
     sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
     placedMaps = os.path.join(clonesMapsBase,'placed')
     
-    name = cloneLine['Name']
+    name = cloneLine['CloneName']
     findLib = name[:name.find('-')]
 
     if local == 'sequenced':
@@ -827,7 +823,7 @@ def getMap(cloneLine,local):
             raise NameError('clone not found')
         if len(singMap) > 1:
             singMap = singMap.iloc[0]
-        return((cloneLine,singMap))
+        return(singMap)
     else:
         libPath = os.path.join(placedMaps,findLib)
         if os.path.isdir(libPath) == False:
