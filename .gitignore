@@ -84,3 +84,5 @@ venv.bak/
 # Example files
 Examples/details/
 Examples/sequences/
+Examples/maps
+Examples/pairs
