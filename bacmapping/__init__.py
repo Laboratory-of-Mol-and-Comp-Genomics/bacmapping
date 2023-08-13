@@ -3,7 +3,7 @@ from .bacmapping import (
 	getCuts, mapSequencedClones, mapPlacedClones, drawMap,
 	countPlacedBACs, splitAttributes, getCoverage, getAverageLength,
 	getSequencedClonesStats, onlySingleCutters, findPairs, makePairs,
-	getRow, getSequenceFromName, getSequenceFromLoc, openSeqGetCuts, 
+	getRow, getSequenceFromName, getSequenceFromLoc, openSeqgetCuts, 
 	getMapsFromLoc, getMaps, getSequence, 
     	getRestrictionMap, getRightIsoschizomer,
    	makeIndexFiles, findPairsFromName
