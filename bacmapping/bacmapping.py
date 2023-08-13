@@ -790,19 +790,18 @@ def getMaps(name):
         raise NameError('clone not found')
     if len(cloneLine) > 1:
         cloneLine = cloneLine.iloc[0]
-    ind = cloneLine.iloc[0]
-    accession = cloneLine['Accession']
-    chrom = cloneLine['Chrom']
+    chrom = str(cloneLine['Chrom'].item())
     chrompath = os.path.join(libPath,chrom+'.csv')
     mapsList = pd.read_csv(chrompath, sep='\t', low_memory=False)
-    map = mapsList.iloc[ind]
-    return(map)
+    rmaps = mapsList[mapsList['Name'] == name]
+    trmaps = rmaps.applymap(lambda x: x[1:-1].split(',') if str(x)[0] == '[' else x)
+    return(trmaps)
 
 #return restriction map for single enzyme
 def getRestrictionMap(name,enzyme):
     maps = getMaps(name)
     nenzyme, r = getRightIsoschizomer(enzyme)
-    return(maps[nenzyme])
+    return(maps[nenzyme].item())
 
 #get insert sequence of a BAC from name
 def getSequenceFromName(name):
@@ -862,10 +861,10 @@ def getMapsFromLoc(chrom,start,end, inclusive=True):
 def drawMap(name,enzyme,circular = False):
     maps = getMaps(name)
     nenzyme, r = getRightIsoschizomer(enzyme)
-    map = maps[nenzyme]
-    if str(map)[0] != '[':
+    rmap = maps[nenzyme].item()
+    if type(rmap) == str:
         raise NameError('too many cuts')
-    nums = ast.literal_eval(map)
+    nums = [int(x) for x in rmap]
     totallength = np.abs(int(maps['End']) - int(maps['Start']))
     enz = eval('rst.'+enzyme)
     figure, axes = plt.subplots()
