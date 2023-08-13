@@ -31,7 +31,7 @@ Then clone and install this github repository on Linux
 ```bash
 git clone https://github.com/Ewinden/bacmapping/
 cd bacmapping
-pip install -e .
+pip install .
 ```
 
 ## Functions
