@@ -33,6 +33,10 @@ git clone https://github.com/Ewinden/bacmapping/
 cd bacmapping
 pip install .
 ```
+## Example
+If you wish to go through the functions with an example in a jupyter notebook, look in the Example folder for the file "bacmappingexample.ipynb"
+Open this notebook in the example folder and use the bacmapping environment
+
 
 ## Functions
 ### Main pipeline functions
