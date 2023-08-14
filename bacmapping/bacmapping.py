@@ -481,11 +481,7 @@ def countPlacedBACs():
         w.writerows(libnumbers)
 
 #Get coverage of the genome
-def getCoverage(chunk_size = 5000):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    
+def getCoverage():
     #Prep folders
     cwd = os.getcwd()
     clonesDetails = os.path.join(cwd,'details')
@@ -498,6 +494,8 @@ def getCoverage(chunk_size = 5000):
     libs = [x for x in os.listdir(clonesMaps)]
     dtitles = ['accession', 'chromosome'] + libs + ['total', 'length']
     libscoverage =  pd.DataFrame(columns = dtitles)
+    outputf = os.path.join(cwd,'coverage.csv')
+    libscoverage.to_csv(outputf, mode='w', index=False)
 
     for ni, f in enumerate(os.listdir(placedClonesReordered)):
         seqPath = os.path.join(clonesSequences,f + '.fasta')
@@ -508,28 +506,21 @@ def getCoverage(chunk_size = 5000):
         curChrom = de[de.find('chromosome ')+11:de.find(',')]
         seq = currentseq.seq
         seqlen = len(seq)
-        coverageline = [np.asarray([0]*seqlen)]*(len(libs))
         totalcoverage = np.asarray([0]*seqlen)
-        for sect in pd.read_csv(cloPath, sep='\t', chunksize = chunk_size):
-            for lib in libs[:-1]:
-                curk = sect[sect['Library'] == lib]
-                for n, line in curk.iterrows():
-                    coveragenow = coverageline[libs.index(lib)].copy()
-                    coveragenow[int(line['start']):int(line['end'])] = 1
-                    coverageline[libs.index(lib)] = coveragenow
-                    totalcoverage[int(line['start']):int(line['end'])] = 1
-        cover = [f, curChrom] + [np.sum(x) for x in coverageline] + [np.sum(totalcoverage), seqlen]
+        sect = pd.read_csv(cloPath, sep='\t')
+        sumline = [0]*len(libs)
+        for ind, lib in enumerate(libs):
+            coverage = np.asarray([0]*seqlen)
+            insect = sect[sect['Library'] == lib]
+            for n, line in insect.iterrows():
+                coverage[int(line['start']):int(line['end'])] = 1
+            sumline[ind] = sum(coverage)
+            totalcoverage += coverage
+        totalcoverage[totalcoverage > 0] = 1
+        cover = [f,curChrom] + sumline + [sum(totalcoverage), seqlen]
         covert = {dtitles[i]:cover[i] for i in range(len(dtitles))}
-        coverage = pd.Series(covert).to_frame(ni).T
-        libscoverage = pd.concat([libscoverage,coverage], ignore_index=True)
-
-    totalsline = libscoverage.sum()
-    totalsline['accession'] = 'total'
-    totalsline['chromosome'] = 'genome'
-    libscoverage = pd.concat([libscoverage,totalsline.to_frame(ni+1).T], ignore_index=True)
-
-    outputf = os.path.join(cwd,'coverage.csv')
-    libscoverage.to_csv(outputf)
+        outline = pd.Series(covert).to_frame(ni).T
+        outline.to_csv(outputf, mode='a', index=False, header=False)
             
 #Get average length
 def getAverageLength():
@@ -733,7 +724,7 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
     allchrs.remove('index.csv')
 
     for chr in allchrs:
-        print(chr)
+        #print(chr)
         chrset = [os.path.join(x, chr) for x in libpaths if os.path.isfile(os.path.join(x, chr))]
         locmaps = pd.DataFrame()
         for chrpath in chrset:
