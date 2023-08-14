@@ -40,7 +40,7 @@ Open this notebook in the example folder and use the bacmapping environment
 
 ## Functions
 ### Main pipeline functions
-- bacm.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email='user@github.com/ewinden/bacmapping')
+- bacm.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email='example@website.com')
   - Download files from the FTP server
     - download is a boolean whether to download sequence files which are required, but may exist locally already
     - onlyType allows the user to only download details and sequence for one type of clone, ie BACs
@@ -56,7 +56,7 @@ Open this notebook in the example folder and use the bacmapping environment
 
 - mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500)
   - Maps all the clones which are end-sequenced and mapped to the reference genome
-    - include_libraries determines whether or not to use the list generated from narrowDownLibraries
+    - include_libraries determines whether or not to use only libraries referenced in vtype in getNewClones
     - cpustouse determines the number of cores to use when running multiprocessing
     - maxcuts determines the maximum number of cuts with a specific enzyme before the map is truncated, to save space
     - chunk_size determines the amount of lines to read into pandas at once, larger is faster but requires more memory
