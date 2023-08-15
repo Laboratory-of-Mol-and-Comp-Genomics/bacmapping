@@ -164,34 +164,34 @@ Ensure you are on a computer/ server that can handle a large throughput and can 
 In python, the main pipeline is run as
 
 ```python
-import bacmapping as bacm
+import bacmapping as bmap
 from time import perf_counter
 
 times = []
 times.append(perf_counter())
 print('starting downloads')
-bacm.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email='user@github.com/ewinden/bacmapping')
+bmap.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email='user@github.com/ewinden/bmapapping')
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 times.append(perf_counter())
 print('starting sequenced maps')
-bacm.mapSequencedClones(cpustouse=4,chunk_size=5000)
+bmap.mapSequencedClones(cpustouse=4,chunk_size=5000)
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 times.append(perf_counter())
 print('starting placed maps')
-bacm.mapPlacedClones(cpustouse=4,chunk_size=5000)
+bmap.mapPlacedClones(cpustouse=4,chunk_size=5000)
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 
 #the fundamental database has been established, the next lines describe the database
 
 times.append(perf_counter())
 print('starting stats')
-bacm.countPlacedBACs()
-bacm.getCoverage()
-bacm.getAverageLength()
-bacm.getSequencedClonesStats()
+bmap.countPlacedBACs()
+bmap.getCoverage()
+bmap.getAverageLength()
+bmap.getSequencedClonesStats()
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 times.append(perf_counter())
-bacm.makePairs(cpustouse=8)
+bmap.makePairs(cpustouse=8)
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 times.append(perf_counter())
 print(times)
