@@ -753,7 +753,6 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
 def getMaps(name):
     #Prep folders
     cwd = os.getcwd()
-    clonesSequences = os.path.join(cwd,'sequences')
     clonesMapsBase = os.path.join(cwd,'maps')
     sequencedMaps = os.path.join(clonesMapsBase,'sequenced')
     placedMaps = os.path.join(clonesMapsBase,'placed')
@@ -779,11 +778,15 @@ def getMaps(name):
         raise NameError('clone not found')
     if len(cloneLine) > 1:
         cloneLine = cloneLine.iloc[0]
-    chrom = str(cloneLine['Chrom'].item())
+    chrom = cloneLine['Chrom']
+    if type(chrom) != str:
+        chrom = str(cloneLine['Chrom'].item())
     chrompath = os.path.join(libPath,chrom+'.csv')
     mapsList = pd.read_csv(chrompath, sep='\t', low_memory=False)
     rmaps = mapsList[mapsList['Name'] == name]
     trmaps = rmaps.applymap(lambda x: x[1:-1].split(',') if str(x)[0] == '[' else x)
+    if len(trmaps) > 1:
+        trmaps = trmaps.iloc[0]
     return(trmaps)
 
 #return restriction map for single enzyme
