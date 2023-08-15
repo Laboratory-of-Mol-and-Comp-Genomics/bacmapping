@@ -4,7 +4,7 @@ from .bacmapping import (
 	countPlacedBACs, splitAttributes, getCoverage, getAverageLength,
 	getSequencedClonesStats, onlySingleCutters, findPairs, makePairs,
 	getRow, getSequenceFromName, getSequenceFromLoc, openSeqgetCuts, 
-	getMapsFromLoc, getMaps, getSequence, 
-    	getRestrictionMap, getRightIsoschizomer,
-   	makeIndexFiles, findPairsFromName
+	getMapsFromLoc, getMaps, getSequence, getRestrictionMap,
+    getRightIsoschizomer, makeIndexFiles, findPairsFromName,
+   	findOverlappingBACs
 	)

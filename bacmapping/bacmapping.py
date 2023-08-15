@@ -243,8 +243,6 @@ def splitAttributes(ser):
         return(df)        
 
 #Given a row, gets the sequence and cuts it
-#Row is [name, chromosome, start, end, accession, library, maxcuts, file where accessions are contained]
-#Uses global shortComm for the list of cutters
 def openSeqgetCuts(row):
     clonesSequences = row[7]
     maxcuts = row[6]
@@ -276,8 +274,6 @@ def openSeqgetCuts(row):
     return(cuts)
 
 #Given a row, cuts at the globally loaded sequence
-#Row is [name, chromosome, start, end, accession, library, maxcuts, file where accessions are contained]
-#uses globals cseq for the sequence and shortComm for the list of cutters
 def getCuts(row):
     clonesSequences = row[7]
     maxcuts = row[6]
@@ -601,10 +597,10 @@ def getRow(name):
     sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
     
     #set up important placed lists
-    placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
-    ucname = version + '.unique.gff'
-    ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
-    placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
+    #placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
+    #ucname = version + '.unique.gff'
+    #ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
+    #placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
 
     findLib = name[:name.find('-')]
     seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
@@ -612,17 +608,19 @@ def getRow(name):
         seqdCloneLine = seqdClone.iloc[0]
         row = [seqdCloneLine,'sequenced']
     else:
-        placedFile = placedLibs[findLib]
-        uccur = pd.read_csv(placedFile, sep='\t')
-        firstline = str(uccur.iloc[0]['attributes']).split(';')
-        cnames = [x[:x.find('=')] for x in firstline]
-        middles = [x.find('=') for x in firstline]
-        newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
-        newcols.columns = cnames
-        placedClones = pd.concat([uccur,newcols], axis=1)
+        #placedFile = placedLibs[findLib]
+        placedFile = os.path.join(os.path.join(clonesDetails,'repaired'), findLib + '_repaired.gff')
+        placedClones = pd.read_csv(placedFile, sep='\t')
+        #firstline = str(uccur.iloc[0]['attributes']).split(';')
+        #cnames = [x[:x.find('=')] for x in firstline]
+        #middles = [x.find('=') for x in firstline]
+        #newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
+        #newcols.columns = cnames
+        #placedClones = pd.concat([uccur,newcols], axis=1)
         placedCloneLine = placedClones[placedClones['Name']==name]
         if len(placedCloneLine) > 0:
-            placedCloneLine = placedCloneLine.iloc[0]
+            if len(placedCloneLine) > 1:
+                placedCloneLine = placedCloneLine.iloc[0]
         else:
             raise NameError('clone not found')
         row = [placedCloneLine,'placed']
@@ -955,3 +953,20 @@ def findPairsFromName(name, longestoverlap, shortestoverlap):
     send = [slocmaps,shortestoverlap,longestoverlap]
     pairs = findPairs(send)
     return(pairs)
+
+def findOverlappingBACs(name):
+    #Prep folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesAccessions = os.path.join(clonesDetails,'reordered')
+    row, local = getRow(name)
+    acc = row['seqid'].item()
+    start = row['start'].item()
+    end = row['end'].item()
+    bacsfile = os.path.join(clonesAccessions,acc)
+    bacset = pd.read_csv(bacsfile, sep='\t')
+    subset = bacset[bacset['start'] > start]
+    subset = subset[subset['start'] < end]
+    subset['overlaplength'] = (end - subset['start'])
+    return(subset)
