@@ -15,7 +15,6 @@ import math
 from itertools import repeat
 from shutil import rmtree
 
-global cseq
 global shortComm
 shortC = ['AanI', 'AarI', 'AbaSI', 'AbsI', 'Acc36I', 'AccB7I', 
              'AccII', 'AccIII', 'AclI', 'AclWI', 'AcuI', 'AdeI', 
@@ -197,15 +196,17 @@ def getNewClones(download = True, onlyType = True, vtype = 'BAC', chunk_size=500
     #Download all sequences
     if download == True:
         Entrez.email = email  # Always tell NCBI who you are
-        for accession in allaccs: #allplacedaccs for only placed
-            save = os.path.join(clonesSequences,accession+'.fasta')
-            if os.path.isfile(save) == True:
-                continue
-            net_handle = Entrez.efetch(db="nucleotide", id=accession, rettype="fasta", retmode="text")
-            out_handle = open(save, "w")
-            out_handle.write(net_handle.read())
-            out_handle.close()
-            net_handle.close()
+        save = os.path.join(clonesSequences,'allsequences.fasta')
+        net_handle = Entrez.efetch(db="nucleotide", id=allaccs, rettype="fasta", retmode="text")
+        out_handle = open(save, "w")
+        out_handle.write(net_handle.read())
+        out_handle.close()
+        net_handle.close()
+
+        seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
+        SeqIO.index_db(seqind, save, 'fasta')
+        #for record in (SeqIO.parse(save, 'fasta')):
+        #    SeqIO.write(record, os.path.join(clonesSequences, str(record.id) + '.fasta'), 'fasta')
 
 #Get only BAC libraries        
 def narrowDownLibraries():
@@ -246,11 +247,15 @@ def splitAttributes(ser):
 def openSeqgetCuts(row):
     clonesSequences = row[7]
     maxcuts = row[6]
-    accPath = os.path.join(clonesSequences,row[4]+'.fasta')
-    if os.path.isfile(accPath) == False:
-        return('NoA')
-    record_iter = SeqIO.parse(open(accPath), "fasta")
-    record = list(record_iter)[0]
+    acc = row[4]
+    #accPath = os.path.join(clonesSequences,row[4]+'.fasta')
+    #if os.path.isfile(accPath) == False:
+    #    return('NoA')
+    seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
+    record_index = SeqIO.index_db(seqind, format = 'fasta')
+    record = record_index[acc]
+    #record_iter = SeqIO.parse(open(accPath), "fasta")
+    #record = list(record_iter)[0]
     seq = record.seq[int(row[2]):int(row[3])]
     cuts = shortComm.search(seq)
     for key in cuts:
@@ -275,16 +280,11 @@ def openSeqgetCuts(row):
 
 #Given a row, cuts at the globally loaded sequence
 def getCuts(row):
-    clonesSequences = row[7]
     maxcuts = row[6]
-    record = cseq
-    lengthtest = int(row[2]) - int(row[3])
-    if 25000 <= lengthtest <= 350000:
-        seq = record.seq[int(row[3]):int(row[2])]
-    elif -350000 <= lengthtest <= -25000:
-        seq = record.seq[int(row[2]):int(row[3])]
-    else:
-        return('NoA')
+    record = row[-1]
+    seq = record.seq
+    if (25000 < len(seq) < 350000) == False:
+        return(None)
     cuts = shortComm.search(seq)
     for key in cuts:
         val = cuts[key]
@@ -376,12 +376,6 @@ def mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_si
 
 #Map the end-sequenced clones based on placement details
 def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
-    #Set taxid and version (most recent human)
-    version = '118'
-    taxid = '9606'
-    global cseq
-
-    
     #Prep folders
     cwd = os.getcwd()
     clonesDetails = os.path.join(cwd,'details')
@@ -390,6 +384,7 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
     clonesRepaired = os.path.join(clonesDetails,'repaired')
     clonesMapsBase = os.path.join(cwd,'maps')
     clonesMaps = os.path.join(clonesMapsBase,'placed')
+    seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
 
     if os.path.isdir(clonesMapsBase) == False:
         os.mkdir(clonesMapsBase)
@@ -402,25 +397,30 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
 
     #Get a list of libraries
     libraries = [x[:x.find('_')] for x in os.listdir(clonesRepaired)]
-    for lib in libraries:
-        os.makedirs(os.path.join(clonesMaps, lib), exist_ok=True)
+    libpaths = [os.path.join(clonesMaps,x) for x in libraries]
+    for parth in libpaths:
+        if os.path.isdir(parth) == False:
+            os.mkdir(parth)
+    
 
     #loop through libaries, loop through chunks clones, process them
     for accession in accs:
         accPath = os.path.join(clonesAccessions, accession)
-        seqPath = os.path.join(clonesSequences, accession + '.fasta')
+        record_index = SeqIO.index_db(seqind, format = 'fasta')
+        currentseq = record_index[accession]
+        de = currentseq.description
+        curChrom = de[de.find('chromosome ')+11:de.find(',')]
         for placedClones in pd.read_csv(accPath, sep='\t', chunksize=chunk_size):
-            record_iter = list(SeqIO.parse(open(seqPath), "fasta"))
-            currentseq = record_iter[0]
-            de = currentseq.description
-            curChrom = de[de.find('chromosome ')+11:de.find(',')]
-            cseq = currentseq
+            placedClones.apply(lambda row: pd.Series([np.min(row[['start','end']].astype(int)),
+                                                      np.max(row[['start','end']].astype(int))], 
+                                                      index=['start','end']), axis=1)
+            placedClones['internalseq'] = placedClones.apply(lambda row: currentseq[row['start']:row['end']], axis=1)
             row = zip(placedClones['Name'],repeat(curChrom),placedClones['start'],
                         placedClones['end'],placedClones['seqid'],placedClones['Library'],
-                        repeat(maxcuts), repeat(clonesSequences))
+                        repeat(maxcuts), repeat(clonesSequences), placedClones['internalseq'])
             p = Pool(cpustouse)
             for result in p.imap_unordered(getCuts, (row)):
-                if result == 'NoA':
+                if result == None:
                     continue
                 file = os.path.join(os.path.join(clonesMaps, result['Library']), curChrom+'.csv')
                 if os.path.isfile(file) == False:
@@ -486,6 +486,7 @@ def getCoverage():
     clonesMaps = os.path.join(clonesMapsBase,'placed')
     placedAccessions = os.path.join(clonesSequences,'PlacedAccessions.csv')
     placedClonesReordered = os.path.join(clonesDetails, 'reordered')
+    seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
 
     libs = [x for x in os.listdir(clonesMaps)]
     dtitles = ['accession', 'chromosome'] + libs + ['total', 'length']
@@ -494,10 +495,12 @@ def getCoverage():
     libscoverage.to_csv(outputf, mode='w', index=False)
 
     for ni, f in enumerate(os.listdir(placedClonesReordered)):
-        seqPath = os.path.join(clonesSequences,f + '.fasta')
+        #seqPath = os.path.join(clonesSequences,f + '.fasta')
         cloPath = os.path.join(placedClonesReordered, f)
-        record_iter = SeqIO.parse(open(seqPath), "fasta")
-        currentseq = list(record_iter)[0]
+        #record_iter = SeqIO.parse(open(seqPath), "fasta")
+        record_index = SeqIO.index_db(seqind, format = 'fasta')
+        currentseq = record_index[f]
+        #currentseq = list(record_iter)[0]
         de = currentseq.description
         curChrom = de[de.find('chromosome ')+11:de.find(',')]
         seq = currentseq.seq
@@ -631,22 +634,28 @@ def getSequence(row, local):
 #Prep folders
     cwd = os.getcwd()
     clonesSequences = os.path.join(cwd,'sequences')
-    clonesMapsBase = os.path.join(cwd,'maps')
+    seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
+    
 
     if local == 'sequenced':
-        seqAcc = row['Accession']
-        accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
-        if os.path.isfile(accPath) == False:
-            raise NameError('clone accession not found')
-        record_iter = SeqIO.parse(open(accPath), "fasta")
-        record = list(record_iter)[0]
+        acc = row['Accession']
+        record_index = SeqIO.index_db(seqind, format = 'fasta')
+        record = record_index[acc]
+        #accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
+        #if os.path.isfile(accPath) == False:
+        #    raise NameError('clone accession not found')
+        #record_iter = SeqIO.parse(open(accPath), "fasta")
+        #record = list(record_iter)[0]
         seq = record.seq
     else:
-        accPath = os.path.join(clonesSequences,row['seqid']+'.fasta')
-        if os.path.isfile(accPath) == False:
-            raise NameError('clone accession not found')
-        record_iter = SeqIO.parse(open(accPath), "fasta")
-        record = list(record_iter)[0]
+        acc = row['seqid']
+        record_index = SeqIO.index_db(seqind, format = 'fasta')
+        record = record_index[acc]
+        #accPath = os.path.join(clonesSequences,row['seqid']+'.fasta')
+        #if os.path.isfile(accPath) == False:
+        #    raise NameError('clone accession not found')
+        #record_iter = SeqIO.parse(open(accPath), "fasta")
+        #record = list(record_iter)[0]
         seq = record.seq[row['start']:row['end']]
     return(seq)
 
@@ -806,8 +815,9 @@ def getSequenceFromLoc(chrom,start,end):
     #Prep folders
     cwd = os.getcwd()
     clonesSequences = os.path.join(cwd,'sequences')
-    
-    #Sequence files
+    seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
+
+    #Setup chroms
     accessions = {}
     for n in range(1,10):
         accessions[str(n)] = 'NC_00000'+str(n)+'.'
@@ -815,14 +825,21 @@ def getSequenceFromLoc(chrom,start,end):
         accessions[str(n)] = 'NC_0000'+str(n)+'.'
     accessions['X'] = 'NC_000023.'
     accessions['Y'] = 'NC_000024.'
+
+    #find chrom
+    chrom = str(chrom)
     accession = accessions[str(chrom)]
-    accession = [x for x in os.listdir(clonesSequences) if accession in x]
+    record_index = SeqIO.index_db(seqind, format = 'fasta')
+    accession = [x for x in record_index if accession in x]
     if len(accession) == 0:
         raise NameError('clone accession not found')
     accession = accession[-1]
-    accPath = os.path.join(clonesSequences,accession)
-    record_iter = SeqIO.parse(open(accPath), "fasta")
-    record = list(record_iter)[0]
+    
+    #get sequence
+    record = record_index[accession]
+    #accPath = os.path.join(clonesSequences,accession)
+    #record_iter = SeqIO.parse(open(accPath), "fasta")
+    #record = list(record_iter)[0]
     seq = record.seq[start:end]
     return(seq)
 
