@@ -48,7 +48,7 @@ Open this notebook in the example folder and use the bacmapping environment
     - chunk_size determines the amount of lines to read into pandas at once, larger is faster but requires more memory
     - email should be set to the user email to allow the NIH servers to know who is accessing the database
     
-- mapSequencedClones(cpustouse=1, maxcuts=50, chunk_size=500)
+- mapSequencedClones(cpustouse=1, maxcuts=50)
   - Maps all the clones which are insert sequenced
     - cpustouse determines the number of cores to use when running multiprocessing
     - maxcuts determines the maximum number of cuts with a specific enzyme before the map is truncated, to save space
@@ -167,14 +167,16 @@ In python, the main pipeline is run as
 import bacmapping as bmap
 from time import perf_counter
 
+email = 'example@anexample.org' # Provide NCBI with your email when downloading sequence from them
+
 times = []
 times.append(perf_counter())
 print('starting downloads')
-bmap.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email='user@github.com/ewinden/bmapapping')
+bmap.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email=email)
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 times.append(perf_counter())
 print('starting sequenced maps')
-bmap.mapSequencedClones(cpustouse=4,chunk_size=5000)
+bmap.mapSequencedClones(cpustouse=4)
 print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 times.append(perf_counter())
 print('starting placed maps')

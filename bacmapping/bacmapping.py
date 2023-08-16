@@ -248,14 +248,12 @@ def openSeqgetCuts(row):
     clonesSequences = row[7]
     maxcuts = row[6]
     acc = row[4]
-    #accPath = os.path.join(clonesSequences,row[4]+'.fasta')
-    #if os.path.isfile(accPath) == False:
-    #    return('NoA')
     seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
     record_index = SeqIO.index_db(seqind, format = 'fasta')
-    record = record_index[acc]
-    #record_iter = SeqIO.parse(open(accPath), "fasta")
-    #record = list(record_iter)[0]
+    try:
+        record = record_index[acc]
+    except:
+        return(None)
     seq = record.seq[int(row[2]):int(row[3])]
     cuts = shortComm.search(seq)
     for key in cuts:
@@ -319,7 +317,7 @@ def makeIndexFiles(loc):
     indset.to_csv(os.path.join(loc,'index.csv'))
 
 #Map the clones detailed in clone_acstate_taxid 
-def mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500):
+def mapSequencedClones(cpustouse=1, maxcuts=50):
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
@@ -339,24 +337,22 @@ def mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_si
     #set up important files to map and get details
     sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
     included_libraries = os.path.join(clonesDetails,'includedLibraries.csv')
-    if include_libraries == True:
-        with open(included_libraries) as incl:
-            reader = csv.reader(incl)
-            included_list = [row[0] for row in reader]
+    with open(included_libraries) as incl:
+        reader = csv.reader(incl)
+        included_list = [row[0] for row in reader]
             
     #Open a shortened enzyme file, without isoschizomers
     knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
     
     sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
+    sequencedClones = sequencedClones[sequencedClones['LibAbbr'].isin(included_list)]
     sequencedClones['start'] = '0'
-    if include_libraries == True:
-        sequencedClones = sequencedClones[sequencedClones['LibAbbr'].isin(included_list)]
     row = zip(sequencedClones['CloneName'], sequencedClones['Chrom'], sequencedClones['start'],
               sequencedClones['SeqLen'], sequencedClones['Accession'], sequencedClones['LibAbbr'],
              repeat(maxcuts), repeat(clonesSequences))
     p = Pool(cpustouse)
     for result in p.imap_unordered(openSeqgetCuts, row):
-        if result == 'NoA':
+        if result == None:
             continue
         folder = os.path.join(clonesMaps, result['Library'])
         if os.path.isdir(folder) == False:
