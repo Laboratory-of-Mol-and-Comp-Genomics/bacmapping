@@ -34,8 +34,7 @@ cd bacmapping
 pip install .
 ```
 ## Example
-If you wish to go through the functions with an example in a jupyter notebook, look in the Example folder for the file "bacmappingexample.ipynb"
-Open this notebook in the example folder and use the bacmapping environment
+If you wish to go through the functions with an example in a jupyter notebook, look in the Examples folder for the files "bacmappingexample.ipynb" or "Ch19_bacmapping_example.ipynb". Open any this notebooks and use the bacmapping environment.
 
 
 ## Functions
