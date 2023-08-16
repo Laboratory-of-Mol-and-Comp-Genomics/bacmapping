@@ -118,7 +118,7 @@ Open this notebook in the example folder and use the bacmapping environment
     - enzyme is a string of the common name of an enzyme included in the list, such as "HindIII"
 
 - findPairsFromName(name, longestoverlap, shortestoverlap,)
-    - Given a name and overlap parameters, finds all pairs of BACs where enzymes which linearize both BACs and results in ends with overlap parameters
+  - Given a name and overlap parameters, finds all pairs of BACs where enzymes which linearize both BACs and results in ends with overlap parameters
     - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
     - longestoverlap determines the longest distance between the two enzymes, or the overlap if doing gibson synthesis
     - shortestoverlap determines the shortest distance between the two enzymes, or the overlap if doing gibson synthesis; setting this below zero allows for the same enzyme to cut both
@@ -128,6 +128,10 @@ Open this notebook in the example folder and use the bacmapping environment
     - cpustouse determines the number of cores to use when running multiprocessing
     - longestoverlap determines the longest distance between the two enzymes, or the overlap if doing gibson synthesis
     - shortestoverlap determines the shortest distance between the two enzymes, or the overlap if doing gibson synthesis; setting this below zero allows for the same enzyme to cut both
+
+- findOverlappingBACs(name)
+  - given a BAC name, finds all the BACs that overlap it
+    - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
 
 ### Internal functions
 - getRow(name)
