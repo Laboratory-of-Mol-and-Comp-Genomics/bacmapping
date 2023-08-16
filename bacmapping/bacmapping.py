@@ -970,6 +970,7 @@ def findPairsFromName(name, longestoverlap, shortestoverlap):
     pairs = findPairs(send)
     return(pairs)
 
+#find all the BACs that overlap the given bac forward
 def findOverlappingBACs(name):
     #Prep folders
     cwd = os.getcwd()
@@ -985,4 +986,8 @@ def findOverlappingBACs(name):
     subset = bacset[bacset['start'] > start]
     subset = subset[subset['start'] < end]
     subset['overlaplength'] = (end - subset['start'])
-    return(subset)
+    addset = bacset[bacset['end'] > start]
+    addset = addset[addset['end'] < end]
+    addset['overlaplength'] = (addset['end'] - start)
+    totset = pd.concat([addset,subset])
+    return(totset)
