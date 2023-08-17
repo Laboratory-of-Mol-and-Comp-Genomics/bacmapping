@@ -6,5 +6,5 @@ from .bacmapping import (
 	getRow, getSequenceFromName, getSequenceFromLoc, openSeqgetCuts, 
 	getMapsFromLoc, getMaps, getSequence, getRestrictionMap,
     getRightIsoschizomer, makeIndexFiles, findPairsFromName,
-   	findOverlappingBACs
+   	findOverlappingBACs, getNewClonesMiniset
 	)
