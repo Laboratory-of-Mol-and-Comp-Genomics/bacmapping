@@ -259,11 +259,10 @@ def openSeqgetCuts(row):
     for key in cuts:
         val = cuts[key]
         if type(val) == int:
-            lengthv = 1
-        else:
-            lengthv = len(val)
+            val = [val]
+        lengthv = len(val)
         if lengthv > maxcuts:
-            cuts[key] = 'NA'
+            cuts[key] = 'overflow'
     chromosome = row[1]
     if row[1] == '0':
         de = str(record.description)
@@ -272,7 +271,7 @@ def openSeqgetCuts(row):
     cuts['Chrom'] = chromosome
     cuts['Start'] = row[2]
     cuts['End'] = row[3]
-    cuts['Accession'] = row[4]
+    cuts['Accession'] = acc
     cuts['Library'] = row[5]
     return(cuts)
 
@@ -317,7 +316,7 @@ def makeIndexFiles(loc):
     indset.to_csv(os.path.join(loc,'index.csv'))
 
 #Map the clones detailed in clone_acstate_taxid 
-def mapSequencedClones(cpustouse=1, maxcuts=50):
+def mapSequencedClones(cpustouse=2, maxcuts=50):
     #Set taxid and version (most recent human)
     version = '118'
     taxid = '9606'
@@ -336,16 +335,11 @@ def mapSequencedClones(cpustouse=1, maxcuts=50):
     
     #set up important files to map and get details
     sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
-    included_libraries = os.path.join(clonesDetails,'includedLibraries.csv')
-    with open(included_libraries) as incl:
-        reader = csv.reader(incl)
-        included_list = [row[0] for row in reader]
             
     #Open a shortened enzyme file, without isoschizomers
     knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
     
     sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
-    sequencedClones = sequencedClones[sequencedClones['LibAbbr'].isin(included_list)]
     sequencedClones['start'] = '0'
     row = zip(sequencedClones['CloneName'], sequencedClones['Chrom'], sequencedClones['start'],
               sequencedClones['SeqLen'], sequencedClones['Accession'], sequencedClones['LibAbbr'],
@@ -592,30 +586,18 @@ def getRow(name):
     clonesDetails = os.path.join(cwd,'details')
 
     #set up important sequenced lists
-    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'.out')
+    sequencedClonesDetails = os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out')
     sequencedClones = pd.read_csv(sequencedClonesDetails, sep='\t')
-    
-    #set up important placed lists
-    #placedClonesLibsFiles = [x for x in os.listdir(clonesDetails)]
-    #ucname = version + '.unique.gff'
-    #ucst = [x for x in placedClonesLibsFiles if ((ucname in x) & ('.info' not in x))]
-    #placedLibs = dict([((x[:x.find('.')]),os.path.join(clonesDetails,x)) for x in ucst])
 
+    #find it
     findLib = name[:name.find('-')]
     seqdClone = sequencedClones[sequencedClones['CloneName'] == name]
     if len(seqdClone) > 0:
         seqdCloneLine = seqdClone.iloc[0]
         row = [seqdCloneLine,'sequenced']
     else:
-        #placedFile = placedLibs[findLib]
         placedFile = os.path.join(os.path.join(clonesDetails,'repaired'), findLib + '_repaired.gff')
         placedClones = pd.read_csv(placedFile, sep='\t')
-        #firstline = str(uccur.iloc[0]['attributes']).split(';')
-        #cnames = [x[:x.find('=')] for x in firstline]
-        #middles = [x.find('=') for x in firstline]
-        #newcols = uccur['attributes'].apply(splitAttributesWithMids, middles=middles)
-        #newcols.columns = cnames
-        #placedClones = pd.concat([uccur,newcols], axis=1)
         placedCloneLine = placedClones[placedClones['Name']==name]
         if len(placedCloneLine) > 0:
             if len(placedCloneLine) > 1:
@@ -632,27 +614,21 @@ def getSequence(row, local):
     clonesSequences = os.path.join(cwd,'sequences')
     seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
     
-
     if local == 'sequenced':
         acc = row['Accession']
+        if type(acc) != str:
+            acc = row['Accession'].item()
         record_index = SeqIO.index_db(seqind, format = 'fasta')
         record = record_index[acc]
-        #accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
-        #if os.path.isfile(accPath) == False:
-        #    raise NameError('clone accession not found')
-        #record_iter = SeqIO.parse(open(accPath), "fasta")
-        #record = list(record_iter)[0]
-        seq = record.seq
+        seq = record
     else:
-        acc = row['seqid']
+        acc = row['seqid'].item()
         record_index = SeqIO.index_db(seqind, format = 'fasta')
         record = record_index[acc]
-        #accPath = os.path.join(clonesSequences,row['seqid']+'.fasta')
-        #if os.path.isfile(accPath) == False:
-        #    raise NameError('clone accession not found')
-        #record_iter = SeqIO.parse(open(accPath), "fasta")
-        #record = list(record_iter)[0]
-        seq = record.seq[row['start']:row['end']]
+        if type(row['start']) != int:
+            seq = record[row['start'].item():row['end'].item()]
+        else:
+            seq = record[row['start']:row['end']]
     return(seq)
 
 #get single enzyme, checking for isoschizomers
@@ -836,7 +812,7 @@ def getSequenceFromLoc(chrom,start,end):
     #accPath = os.path.join(clonesSequences,accession)
     #record_iter = SeqIO.parse(open(accPath), "fasta")
     #record = list(record_iter)[0]
-    seq = record.seq[start:end]
+    seq = record[start:end]
     return(seq)
 
 #get all the maps between a start and end on a chromosome
@@ -990,9 +966,13 @@ def findOverlappingBACs(name):
     bacset = pd.read_csv(bacsfile, sep='\t')
     subset = bacset[bacset['start'] > start]
     subset = subset[subset['start'] < end]
+    subset['overlapstart'] = subset['start']
+    subset['overlapend'] = end
     subset['overlaplength'] = (end - subset['start'])
     addset = bacset[bacset['end'] > start]
     addset = addset[addset['end'] < end]
+    addset['overlapstart'] = start
+    addset['overlapend'] = addset['end']
     addset['overlaplength'] = (addset['end'] - start)
     totset = pd.concat([addset,subset])
     return(totset)
@@ -1066,8 +1046,8 @@ def getNewClonesMiniset(email, lib, acc, chrom, onlyType=True, chunk_size = 5000
     for lib in ucstlibs:
         ucs = [x for x in ucstpaths if lib+'.' in x]
         ucu = ucs[0][:ucs[0].find('unique')]+'unique.gff'
-        with open(ucu, 'w') as ci:
-            ci.write('\t'.join(fcnames))
+        #with open(ucu, 'w') as ci:
+        #    ci.write('\t'.join(fcnames))
         ucurepaired = os.path.join(clonesDetailsRepaired,lib+'_repaired.gff')
         nucpaths.append(ucu)
         for uc in ucs:
@@ -1087,12 +1067,18 @@ def getNewClonesMiniset(email, lib, acc, chrom, onlyType=True, chunk_size = 5000
                 continue
             for tlines in pd.read_csv(uc, sep='\t', skiprows=7, chunksize=chunk_size, names = fcnames):
                 tlines = tlines[tlines['seqid'] == acc]
-                tlines.to_csv(ucu, mode='a', index=False, header=False, sep='\t')
+                if os.path.exists(ucu) == False:
+                    tlines.to_csv(ucu, mode='w', index=False, header=True, sep='\t')
+                else:
+                    tlines.to_csv(ucu, mode='a', index=False, header=False, sep='\t')
                 newcols = tlines['attributes'].apply(splitAttributesWithMids, middles=middles)
                 newcols.columns = cnames
                 tlinesrep = pd.concat([tlines,newcols], axis=1)
                 tlinesrep['Library'] = lib
-                tlinesrep.to_csv(ucurepaired, mode='w', index=False, header=True, sep='\t')
+                if os.path.exists(ucurepaired) == False:
+                    tlinesrep.to_csv(ucurepaired, mode='w', index=False, header=True, sep='\t')
+                else:
+                    tlinesrep.to_csv(ucurepaired, mode='a', index=False, header=False, sep='\t')
                 accessions = tlinesrep['seqid'].unique()
                 for acc in accessions:
                     tlinesacc = tlinesrep[tlinesrep['seqid'] == acc]
