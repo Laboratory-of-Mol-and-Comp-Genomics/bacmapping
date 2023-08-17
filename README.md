@@ -17,12 +17,13 @@ This package requires:
 - numpy
 - pandas  1.5.2
 - biopython  1.80
-- matplotlib  0.70.14
-- multiprocess  3.6.3
+- matplotlib  3.6.3
+- multiprocess  0.70.14
+
 version control is probably unnecessary but included all the same
 
 ```bash
-conda install -c conda-forge pandas=1.5.2 biopython=1.80 multiprocess=3.6.3 matplotlib=0.70.14
+conda install -c conda-forge pandas=1.5.2 biopython=1.80 multiprocess=0.70.14 matplotlib=3.6.3
 ```
 
 Then clone and install this github repository on Linux
@@ -30,27 +31,31 @@ Then clone and install this github repository on Linux
 ```bash
 git clone https://github.com/Ewinden/bacmapping/
 cd bacmapping
-pip install -e .
+pip install .
 ```
+## Example
+If you wish to go through the functions with an example in a jupyter notebook, look in the Examples folder for the files "bacmappingexample.ipynb" or "Ch19_bacmapping_example.ipynb". Open any this notebooks and use the bacmapping environment.
+
 
 ## Functions
 ### Main pipeline functions
-- getNewClones(download=True)
-  - Download files from the FTP server, download can be set to false to not download the files found
+- bacm.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email='example@website.com')
+  - Download files from the FTP server
+    - download is a boolean whether to download sequence files which are required, but may exist locally already
+    - onlyType allows the user to only download details and sequence for one type of clone, ie BACs
+    - vtype determines the type of clone
+    - chunk_size determines the amount of lines to read into pandas at once, larger is faster but requires more memory
+    - email should be set to the user email to allow the NIH servers to know who is accessing the database
     
-- narrowDownLibraries()
-  - Generates a file with only BAC libraries. Can be modified to include other libraries
-    
-- mapSequencedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500)
+- mapSequencedClones(cpustouse=1, maxcuts=50)
   - Maps all the clones which are insert sequenced
-    - include_libraries determines whether or not to use the list generated from narrowDownLibraries
     - cpustouse determines the number of cores to use when running multiprocessing
     - maxcuts determines the maximum number of cuts with a specific enzyme before the map is truncated, to save space
     - chunk_size determines the amount of lines to read into pandas at once, larger is faster but requires more memory
 
 - mapPlacedClones(include_libraries=True, cpustouse=1, maxcuts=50, chunk_size=500)
   - Maps all the clones which are end-sequenced and mapped to the reference genome
-    - include_libraries determines whether or not to use the list generated from narrowDownLibraries
+    - include_libraries determines whether or not to use only libraries referenced in vtype in getNewClones
     - cpustouse determines the number of cores to use when running multiprocessing
     - maxcuts determines the maximum number of cuts with a specific enzyme before the map is truncated, to save space
     - chunk_size determines the amount of lines to read into pandas at once, larger is faster but requires more memory
@@ -59,13 +64,12 @@ pip install -e .
 - countPlacedBACs()
   - returns the number of placed BACs and library identifiers
     
-- getCoverage(include_libraries=True)
+- getCoverage(chunk_size = 5000)
   - determines coverage of the primary assembly for the genome
-    - include_libraries determines whether or not to use the list generated from narrowDownLibraries
+    - chunk_size determines the amount of lines to read into pandas at once, larger is faster but requires more memory
     
-- getAverageLength(include_libraries=True)
-  - returns average length of mapped clones
-    - include_libraries determines whether or not to use the list generated from narrowDownLibraries
+- getAverageLength()
+  - returns average length of mapped clones, removing extreme size cases
     
 - getSequencedClonesStats(include_libraries=True)
   - returns statistics for the sequenced clone database
@@ -103,16 +107,30 @@ pip install -e .
     - end is the location of the base after the last base in the chromosome sequence
     - inclusive determines whether BACs that overlap the start and end locations but are not wholely inside the range should be included (True means yes)
         
-- getRestrictionMap(name, enzyme)
+- getMaps(name)
+  - Given the name of a BAC, returns all restriction maps
+    - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
+   
+- getRestrictionMap(name,enzyme)
   - Given the name of a BAC and an enzyme, returns the cut locations
     - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
     - enzyme is a string of the common name of an enzyme included in the list, such as "HindIII"
+
+- findPairsFromName(name, longestoverlap, shortestoverlap,)
+  - Given a name and overlap parameters, finds all pairs of BACs where enzymes which linearize both BACs and results in ends with overlap parameters
+    - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
+    - longestoverlap determines the longest distance between the two enzymes, or the overlap if doing gibson synthesis
+    - shortestoverlap determines the shortest distance between the two enzymes, or the overlap if doing gibson synthesis; setting this below zero allows for the same enzyme to cut both
    
 - makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20)
   - Generates a database of pairs of BACs which have overlaps generated by restriction enzymes that linearize the BACs
     - cpustouse determines the number of cores to use when running multiprocessing
     - longestoverlap determines the longest distance between the two enzymes, or the overlap if doing gibson synthesis
     - shortestoverlap determines the shortest distance between the two enzymes, or the overlap if doing gibson synthesis; setting this below zero allows for the same enzyme to cut both
+
+- findOverlappingBACs(name)
+  - given a BAC name, finds all the BACs that overlap it
+    - name is a string containing the common name of a BAC, including library, such as "RP11-168H2"
 
 ### Internal functions
 - getRow(name)
@@ -137,28 +155,51 @@ pip install -e .
 - openSeqgetCuts(row)    
   - Given a row, opens the sequence and returns all the restriction maps. This has been deprecated in the primary path, but could be useful
 
+- narrowDownLibraries()
+  - Incorporated into getNewClones, generates a file with only BAC libraries. Can be modified to include other libraries
+
+- makeIndexFiles(loc)
+  - makes index files for all BACs in a given library for easy finding
+    - loc is the location of the library file used
 
 ## Use
 Ensure you are on a computer/ server that can handle a large throughput and can be left for some time to download/ process everything as well as some space to save the database.
 In python, the main pipeline is run as
 
 ```python
-import bacmapping
+import bacmapping as bmap
+from time import perf_counter
 
-bacmapping.getNewClones() # this will take some time, downloading first all the clones and then their sequences
-bacmapping.narrowDownLibraries()
-bacmapping.mapSequencedClones() # include cpustouse=n to use more cores on a server or computer, include chunk_size=n to use more memory and go faster
-bacmapping.mapPlacedClones() # include cpustouse=n to use more cores on a server or computer, include chunk_size=n to use more memory and go faster
-```
+email = 'example@anexample.org' # Provide NCBI with your email when downloading sequence from them
 
-These functions will download and generate the database locally in a set of folders. To add the files including statistics and match up all the possible BAC pairs, run the following
+times = []
+times.append(perf_counter())
+print('starting downloads')
+bmap.getNewClones(download = True, onlyType=True, vtype='BAC', chunk_size = 5000, email=email)
+print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
+times.append(perf_counter())
+print('starting sequenced maps')
+bmap.mapSequencedClones(cpustouse=4)
+print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
+times.append(perf_counter())
+print('starting placed maps')
+bmap.mapPlacedClones(cpustouse=4,chunk_size=5000)
+print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
 
-```python
-bacmapping.countPlacedBACs()
-bacmapping.getCoverage()
-bacmapping.getAverageLength()
-bacmapping.getSequencedClonesStats()
-bacmapping.makePairs() # include cpustouse=n to use more cores on a server or computer
+#the fundamental database has been established, the next lines describe the database
+
+times.append(perf_counter())
+print('starting stats')
+bmap.countPlacedBACs()
+bmap.getCoverage()
+bmap.getAverageLength()
+bmap.getSequencedClonesStats()
+print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
+times.append(perf_counter())
+bmap.makePairs(cpustouse=8)
+print('This took ' + str(perf_counter()-times[-1]) + ' seconds')
+times.append(perf_counter())
+print(times)
 ```
 
 

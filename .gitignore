@@ -82,5 +82,18 @@ env.bak/
 venv.bak/
 
 # Example files
-Examples/details/
-Examples/sequences/
+Examples/Ch19_example/sequences/
+Examples/Ch19_example/maps
+Examples/Ch19_example/pairs
+Examples/Ch19_example/counts.csv
+Examples/Ch19_example/averagelength.csv
+Examples/Ch19_example/coverage.csv
+Examples/Ch19_example/sequencedStats.csv
+Examples/Full_pipeline/sequences/
+Examples/Full_pipeline/maps
+Examples/Full_pipeline/pairs
+Examples/Full_pipeline/details  
+Examples/Full_pipeline/counts.csv
+Examples/Full_pipeline/averagelength.csv
+Examples/Full_pipeline/coverage.csv
+Examples/Full_pipeline/sequencedStats.csv
