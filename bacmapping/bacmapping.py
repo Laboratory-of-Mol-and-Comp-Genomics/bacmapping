@@ -946,13 +946,14 @@ def findPairsFromName(name, longestoverlap, shortestoverlap):
     indf = pd.read_csv(os.path.join(libpath,'index.csv'))
     placedCloneLine = indf[indf['Name'] == name]
     if len(placedCloneLine) > 0:
-        placedCloneLine = placedCloneLine.iloc[0]
+        if len(placedCloneLine) > 1:
+            placedCloneLine = placedCloneLine.iloc[0]
     else:
         raise NameError('clone not found')
     #ind = placedCloneLine.iloc[0]
     #accession = placedCloneLine['Accession']
-    chrom = placedCloneLine['Chrom']
-    chrompath = os.path.join(libpath,chrom+'.csv')
+    chrom = placedCloneLine['Chrom'].item()
+    chrompath = os.path.join(libpath,str(chrom)+'.csv')
     locmaps = pd.read_csv(chrompath, sep = '\t', low_memory=False)
     locmaps['Start'] = locmaps['Start'].astype(int)
     locmaps['End'] = locmaps['End'].astype(int)
@@ -965,7 +966,11 @@ def findPairsFromName(name, longestoverlap, shortestoverlap):
         ind = np.where(locmaps['Name']==name)
     else:
         raise NameError('clone not found')
-    slocmaps = pd.concat([line,locmaps[locmaps['Start'] > line['Start'] & locmaps['Start'] < line['End']]])
+    start = int(line['Start'].item())
+    end = int(line['End'].item())
+    submaps = locmaps[locmaps['Start'] > start]
+    submaps = submaps[submaps['Start'] < end]
+    slocmaps = pd.concat([line, submaps])
     send = [slocmaps,shortestoverlap,longestoverlap]
     pairs = findPairs(send)
     return(pairs)
@@ -991,3 +996,148 @@ def findOverlappingBACs(name):
     addset['overlaplength'] = (addset['end'] - start)
     totset = pd.concat([addset,subset])
     return(totset)
+
+#get new clones only a lib and chrom
+def getNewClonesMiniset(email, lib, acc, chrom, onlyType=True, chunk_size = 5000):
+    onlyType = True
+    vtype = 'BAC'
+
+    #Set taxid and version (most recent human)
+    version = '118'
+    taxid = '9606'
+    species = 'Homo_sapiens'
+
+    #Setup names
+    cloneacstate = 'clone_acstate_'+taxid+'.out'
+    librarys = 'library_'+taxid+'.out'
+    ucname = version + '.unique_'
+
+    #Setup folders
+    cwd = os.getcwd()
+    clonesDetails = os.path.join(cwd,'details')
+    clonesSequences = os.path.join(cwd,'sequences')
+    clonesDetailsRepaired = os.path.join(clonesDetails,'repaired')
+    clonesDetailsReordered = os.path.join(clonesDetails,'reordered')
+    clonesDetailsInfo = os.path.join(clonesDetails,'info')
+
+    for f in [clonesDetails, clonesSequences, clonesDetailsRepaired,clonesDetailsReordered, clonesDetailsInfo]:
+        os.makedirs(f, exist_ok=True)
+
+        ucstpaths = []
+        ucstlibs = []
+
+        #Login to NCBI FTP to download details files
+        libraryDetails = os.path.join(clonesDetails,librarys)
+        cloneacstatepath = os.path.join(clonesDetails,cloneacstate)
+        with FTP("ftp.ncbi.nih.gov") as ftp:
+            ftp.login()
+            ftp.cwd('repository/clone/reports/'+species+'/')
+            for f, p in [[librarys,libraryDetails],[cloneacstate, cloneacstatepath]]:
+                if os.path.exists(p) == False:
+                    ftp.retrbinary("RETR " + f ,open(p, 'wb').write)
+            filenames = ftp.nlst()
+            ucst = [x for x in filenames if ucname in x]
+
+            #Narrow down
+            if onlyType==True:
+                librariesToInclude = os.path.join(clonesDetails, 'includedLibraries.csv')
+                fullp = pd.read_csv(libraryDetails, sep='\t')
+                cut = fullp[fullp['vtype'] == vtype]
+                dcut = cut[cut['libabbr'] == lib]
+                uselibs = dcut['libabbr']
+                uselibs.to_csv(librariesToInclude, index = False, header = False)
+                ucst = [x for x in ucst if x[:x.find('.')] in set(uselibs)]
+
+            ucstlibs = ucst
+
+            for f in ucst:
+                p = os.path.join(clonesDetails,f)
+                ucstpaths.append(p)
+                if os.path.exists(p) == False:
+                    ftp.retrbinary("RETR " + f ,open(p, 'wb').write)
+
+    #Get accession list
+    ucstpaths= [os.path.join(clonesDetails,x) for x in ucst]
+    ucstlibs = list(set([uc[:uc.find('.')] for uc in ucst if ('unique' in uc)]))
+
+    #Split unique files into a header and details, save fixed files and by accession
+    nucpaths = []
+    fcnames= ['seqid','source','type','start','end','score','strand','phase','attributes']
+    for lib in ucstlibs:
+        ucs = [x for x in ucstpaths if lib+'.' in x]
+        ucu = ucs[0][:ucs[0].find('unique')]+'unique.gff'
+        with open(ucu, 'w') as ci:
+            ci.write('\t'.join(fcnames))
+        ucurepaired = os.path.join(clonesDetailsRepaired,lib+'_repaired.gff')
+        nucpaths.append(ucu)
+        for uc in ucs:
+            ucinfo = os.path.join(clonesDetailsInfo, uc[uc.find(lib):] + '.info.txt')
+            stahp = False
+            for header in pd.read_csv(uc, sep='\t', header=None, chunksize=7):
+                header.to_csv(ucinfo)
+                break
+            for tlines in pd.read_csv(uc, sep='\t', skiprows=7, chunksize=1, names = fcnames):
+                if tlines.empty:
+                    stahp = True
+                    break
+                atts = tlines['attributes'].item().split(';')
+                cnames = [x[:x.find('=')] for x in atts]
+                middles = [x.find('=') for x in atts]
+            if stahp == True:
+                continue
+            for tlines in pd.read_csv(uc, sep='\t', skiprows=7, chunksize=chunk_size, names = fcnames):
+                tlines = tlines[tlines['seqid'] == acc]
+                tlines.to_csv(ucu, mode='a', index=False, header=False, sep='\t')
+                newcols = tlines['attributes'].apply(splitAttributesWithMids, middles=middles)
+                newcols.columns = cnames
+                tlinesrep = pd.concat([tlines,newcols], axis=1)
+                tlinesrep['Library'] = lib
+                tlinesrep.to_csv(ucurepaired, mode='w', index=False, header=True, sep='\t')
+                accessions = tlinesrep['seqid'].unique()
+                for acc in accessions:
+                    tlinesacc = tlinesrep[tlinesrep['seqid'] == acc]
+                    ucureorder = os.path.join(clonesDetailsReordered,acc)
+                    if os.path.exists(ucureorder) == False:
+                        tlinesacc.to_csv(ucureorder, mode='w', index = False, header = True, sep = '\t')
+                    else:
+                        tlinesacc.to_csv(ucureorder, mode='a', index = False, header = False, sep = '\t')
+
+    for fpath in ucstpaths:
+        inputf = pd.read_csv(fpath, sep='\t', skiprows=8, names = fcnames)
+        outputf = inputf[inputf['seqid'] == acc]
+        outputf.to_csv(fpath, sep='\t')
+
+    #Get accessions of sequenced clones from clone_acstate
+    seqdclones = pd.read_csv(cloneacstatepath, sep='\t')
+    finseqclones = seqdclones[(seqdclones['Stdn']=='Y') & (seqdclones['CloneState']=='fin') & (seqdclones['Chrom']==chrom) & (seqdclones['LibAbbr']==lib)]
+    finseqaccs = finseqclones['Accession'].unique()
+    finseqclones.to_csv(os.path.join(clonesDetails,'clone_acstate_'+taxid+'_onlyfinished.out'),sep='\t',index=False)
+
+    #Get accessions for placed clones
+    allplacedaccs = []
+    for uc in nucpaths:
+        uccur = pd.read_csv(uc, sep='\t')
+        plasecaccs = uccur['seqid'].unique()
+        [allplacedaccs.append(x) for x in list(plasecaccs) if x not in allplacedaccs]
+        
+    #Make superfile and save accessions lists
+    allaccs = allplacedaccs + list(finseqaccs)
+    with open(os.path.join(clonesSequences,'Accessions.csv'), 'w') as accessions:
+        accessions.writelines('\n'.join(allaccs) + '\n')
+    with open(os.path.join(clonesSequences,'PlacedAccessions.csv'), 'w') as accessions:
+        accessions.writelines('\n'.join(allplacedaccs) + '\n')
+    with open(os.path.join(clonesSequences,'SequencedAccessions.csv'), 'w') as accessions:
+        accessions.writelines('\n'.join(finseqaccs) + '\n')
+
+
+    #Download all sequences
+    Entrez.email = email  # Always tell NCBI who you are
+    save = os.path.join(clonesSequences,'allsequences.fasta')
+    net_handle = Entrez.efetch(db="nucleotide", id=allaccs, rettype="fasta", retmode="text")
+    out_handle = open(save, "w")
+    out_handle.write(net_handle.read())
+    out_handle.close()
+    net_handle.close()
+
+    seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
+    SeqIO.index_db(seqind, save, 'fasta')
