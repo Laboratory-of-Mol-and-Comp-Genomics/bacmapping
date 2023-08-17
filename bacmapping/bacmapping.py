@@ -634,7 +634,7 @@ def getSequence(row, local):
     
 
     if local == 'sequenced':
-        acc = row['Accession']
+        acc = row['Accession'].item()
         record_index = SeqIO.index_db(seqind, format = 'fasta')
         record = record_index[acc]
         #accPath = os.path.join(clonesSequences,seqAcc+'.fasta')
@@ -642,9 +642,9 @@ def getSequence(row, local):
         #    raise NameError('clone accession not found')
         #record_iter = SeqIO.parse(open(accPath), "fasta")
         #record = list(record_iter)[0]
-        seq = record.seq
+        seq = record
     else:
-        acc = row['seqid']
+        acc = row['seqid'].item()
         record_index = SeqIO.index_db(seqind, format = 'fasta')
         record = record_index[acc]
         #accPath = os.path.join(clonesSequences,row['seqid']+'.fasta')
@@ -652,7 +652,10 @@ def getSequence(row, local):
         #    raise NameError('clone accession not found')
         #record_iter = SeqIO.parse(open(accPath), "fasta")
         #record = list(record_iter)[0]
-        seq = record.seq[row['start']:row['end']]
+        if type(row['start']) != int:
+            seq = record[row['start'].item():row['end'].item()]
+        else:
+            seq = record[row['start']:row['end']]
     return(seq)
 
 #get single enzyme, checking for isoschizomers
@@ -990,9 +993,13 @@ def findOverlappingBACs(name):
     bacset = pd.read_csv(bacsfile, sep='\t')
     subset = bacset[bacset['start'] > start]
     subset = subset[subset['start'] < end]
+    subset['overlapstart'] = subset['start']
+    subset['overlapend'] = end
     subset['overlaplength'] = (end - subset['start'])
     addset = bacset[bacset['end'] > start]
     addset = addset[addset['end'] < end]
+    addset['overlapstart'] = start
+    addset['overlapend'] = addset['end']
     addset['overlaplength'] = (addset['end'] - start)
     totset = pd.concat([addset,subset])
     return(totset)
