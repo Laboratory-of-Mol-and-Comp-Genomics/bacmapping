@@ -1,8 +1,0 @@
-,0
-0,##gff-version 3
-1,#scientific name: Homo_sapiens
-2,#assembly name: GRCh38.p12
-3,#clone annotation release number: 118
-4,#source: NCBI
-5,#library: RP11
-6,#program version: 3.1
