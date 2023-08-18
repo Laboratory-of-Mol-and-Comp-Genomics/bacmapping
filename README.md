@@ -23,7 +23,7 @@ This package requires:
 version control is probably unnecessary but included all the same
 
 ```bash
-conda install -c conda-forge pandas=1.5.2 biopython=1.80 multiprocess=0.70.14 matplotlib=3.6.3
+conda install -c conda-forge jupyter pandas=1.5.2 biopython=1.80 multiprocess=0.70.14 matplotlib=3.6.3
 ```
 
 Then clone and install this github repository on Linux
