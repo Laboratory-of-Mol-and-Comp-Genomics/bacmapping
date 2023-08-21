@@ -450,6 +450,8 @@ def countPlacedBACs():
             continue
         chroms = os.listdir(libpath)
         for chrom in chroms:
+            if chrom == 'index.csv':
+                continue
             chrompath = os.path.join(libpath,chrom)
             if os.path.isfile(chrompath) == False:
                 continue
