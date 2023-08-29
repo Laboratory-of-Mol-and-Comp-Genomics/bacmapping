@@ -361,8 +361,11 @@ def mapSequencedClones(cpustouse=2, maxcuts=50):
             writer.writerow(result)
     p.close()
     p.join()
-    for lib in [x[0] for x in os.walk(clonesMaps)]:
-        makeIndexFiles(os.path.join(clonesMaps,lib))
+
+    for lib in os.listdir(clonesMaps):
+        libpath = os.path.join(clonesMaps,lib)
+        if os.path.isdir(libpath) == True:
+            makeIndexFiles(libpath)
 
 #Map the end-sequenced clones based on placement details
 def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
@@ -423,8 +426,10 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
             p.close()
             p.join()
 
-    for lib in [x[0] for x in os.walk(clonesMaps)]:
-        makeIndexFiles(os.path.join(clonesMaps,lib))
+    for lib in os.listdir(clonesMaps):
+        libpath = os.path.join(clonesMaps,lib)
+        if os.path.isdir(libpath) == True:
+            makeIndexFiles(libpath)
 
 #Count BACs
 def countPlacedBACs():
@@ -697,7 +702,7 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
 
     allchrs = []
     libraries = os.listdir(clonesMaps)
-    libpaths = [os.path.join(clonesMaps, x) for x in libraries if (x.startswith('.')==False and x!='index.csv') ]
+    libpaths = [os.path.join(clonesMaps, x) for x in libraries if (x.startswith('.')==False and x!='index.csv')]
     for libpath in libpaths:
         for chr in os.listdir(libpath):
             if chr == 'index.csv' or chr.startswith('.'):
