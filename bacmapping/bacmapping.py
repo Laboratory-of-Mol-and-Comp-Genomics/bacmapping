@@ -361,7 +361,7 @@ def mapSequencedClones(cpustouse=2, maxcuts=50):
             writer.writerow(result)
     p.close()
     p.join()
-    for lib in os.listdir(clonesMaps):
+    for lib in [x[0] for x in os.walk(clonesMaps)]:
         makeIndexFiles(os.path.join(clonesMaps,lib))
 
 #Map the end-sequenced clones based on placement details
@@ -386,7 +386,7 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
     accs = os.listdir(clonesAccessions)
 
     #Get a list of libraries
-    libraries = [x[:x.find('_')] for x in os.listdir(clonesRepaired)]
+    libraries = [x[:x.find('_')] for x in os.listdir(clonesRepaired) if x.startswith('.')==False]
     libpaths = [os.path.join(clonesMaps,x) for x in libraries]
     for parth in libpaths:
         if os.path.isdir(parth) == False:
@@ -423,7 +423,7 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
             p.close()
             p.join()
 
-    for lib in os.listdir(clonesMaps):
+    for lib in [x[0] for x in os.walk(clonesMaps)]:
         makeIndexFiles(os.path.join(clonesMaps,lib))
 
 #Count BACs
@@ -776,7 +776,10 @@ def getMaps(name):
 def getRestrictionMap(name,enzyme):
     maps = getMaps(name)
     nenzyme, r = getRightIsoschizomer(enzyme)
-    return(maps[nenzyme].item())
+    rmap = maps[nenzyme]
+    if type(rmap) != list:
+        rmap = rmap.item()
+    return(rmap)
 
 #get insert sequence of a BAC from name
 def getSequenceFromName(name):
@@ -842,9 +845,7 @@ def getMapsFromLoc(chrom,start,end, inclusive=True):
 
 #Draw a circular or linear map of an enzyme
 def drawMap(name,enzyme,circular = False):
-    maps = getMaps(name)
-    nenzyme, r = getRightIsoschizomer(enzyme)
-    rmap = maps[nenzyme].item()
+    rmap = getRestrictionMap(name,enzyme)
     if type(rmap) == str:
         raise NameError('too many cuts')
     nums = [int(x) for x in rmap]
