@@ -697,9 +697,11 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
 
     allchrs = []
     libraries = os.listdir(clonesMaps)
-    libpaths = [os.path.join(clonesMaps, x) for x in libraries if x.startswith('.')==False]
+    libpaths = [os.path.join(clonesMaps, x) for x in libraries if (x.startswith('.')==False and x!='index.csv') ]
     for libpath in libpaths:
         for chr in os.listdir(libpath):
+            if chr == 'index.csv' or chr.startswith('.'):
+                continue
             if chr not in allchrs:
                 allchrs.append(chr)
     allchrs.remove('index.csv')
