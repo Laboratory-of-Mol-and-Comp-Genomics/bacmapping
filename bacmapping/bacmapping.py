@@ -353,7 +353,7 @@ def mapSequencedClones(cpustouse=2, maxcuts=50):
             os.mkdir(folder)
         file = os.path.join(folder, str(result['Chrom'])+'.csv')
         if os.path.isfile(file) == False:
-            with open(file, "a") as fwri:
+            with open(file, "w") as fwri:
                 writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter='\t', fieldnames = knames)
                 writer.writeheader()
         with open(file, "a") as fwri:
