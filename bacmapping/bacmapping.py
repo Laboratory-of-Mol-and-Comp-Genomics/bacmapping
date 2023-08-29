@@ -491,7 +491,7 @@ def getCoverage():
     outputf = os.path.join(cwd,'coverage.csv')
     libscoverage.to_csv(outputf, mode='w', index=False)
 
-    for ni, f in [x for x in enumerate(os.listdir(placedClonesReordered)) if x.startswith('.')==False]:
+    for ni, f in enumerate(os.listdir(placedClonesReordered)):
         #seqPath = os.path.join(clonesSequences,f + '.fasta')
         cloPath = os.path.join(placedClonesReordered, f)
         #record_iter = SeqIO.parse(open(seqPath), "fasta")
@@ -709,7 +709,6 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
                 continue
             if chr not in allchrs:
                 allchrs.append(chr)
-    allchrs.remove('index.csv')
 
     for chr in allchrs:
         #print(chr)
