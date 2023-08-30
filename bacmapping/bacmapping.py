@@ -108,7 +108,7 @@ def getNewClones(download = True, onlyType = True, vtype = 'BAC', chunk_size=500
             if os.path.exists(p) == False:
                 ftp.retrbinary("RETR " + f ,open(p, 'wb').write)
 
-    ucst = os.listdir(clonesDetails)
+    ucst = [x for x in os.listdir(clonesDetails) if x.startswith('.')==False]
                 
     #Get accession list
     ucstpaths= [os.path.join(clonesDetails,x) for x in ucst]
@@ -353,7 +353,7 @@ def mapSequencedClones(cpustouse=2, maxcuts=50):
             os.mkdir(folder)
         file = os.path.join(folder, str(result['Chrom'])+'.csv')
         if os.path.isfile(file) == False:
-            with open(file, "a") as fwri:
+            with open(file, "w") as fwri:
                 writer = csv.DictWriter(fwri, lineterminator = '\n', delimiter='\t', fieldnames = knames)
                 writer.writeheader()
         with open(file, "a") as fwri:
@@ -361,8 +361,11 @@ def mapSequencedClones(cpustouse=2, maxcuts=50):
             writer.writerow(result)
     p.close()
     p.join()
+
     for lib in os.listdir(clonesMaps):
-        makeIndexFiles(os.path.join(clonesMaps,lib))
+        libpath = os.path.join(clonesMaps,lib)
+        if os.path.isdir(libpath) == True:
+            makeIndexFiles(libpath)
 
 #Map the end-sequenced clones based on placement details
 def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
@@ -383,10 +386,10 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
             
     #Open a shortened enzyme file, without isoschizomers
     knames = ['Name','Library','Chrom','Start','End','Accession'] + list(shortComm)
-    accs = os.listdir(clonesAccessions)
+    accs = [x for x in os.listdir(clonesAccessions) if x.startswith('.')==False]
 
     #Get a list of libraries
-    libraries = [x[:x.find('_')] for x in os.listdir(clonesRepaired)]
+    libraries = [x[:x.find('_')] for x in os.listdir(clonesRepaired) if x.startswith('.')==False]
     libpaths = [os.path.join(clonesMaps,x) for x in libraries]
     for parth in libpaths:
         if os.path.isdir(parth) == False:
@@ -424,7 +427,9 @@ def mapPlacedClones(cpustouse=1, maxcuts=50, chunk_size=500):
             p.join()
 
     for lib in os.listdir(clonesMaps):
-        makeIndexFiles(os.path.join(clonesMaps,lib))
+        libpath = os.path.join(clonesMaps,lib)
+        if os.path.isdir(libpath) == True:
+            makeIndexFiles(libpath)
 
 #Count BACs
 def countPlacedBACs():
@@ -450,7 +455,7 @@ def countPlacedBACs():
             continue
         chroms = os.listdir(libpath)
         for chrom in chroms:
-            if chrom == 'index.csv':
+            if chrom == 'index.csv' or chrom.startswith('.'):
                 continue
             chrompath = os.path.join(libpath,chrom)
             if os.path.isfile(chrompath) == False:
@@ -480,7 +485,7 @@ def getCoverage():
     placedClonesReordered = os.path.join(clonesDetails, 'reordered')
     seqind = os.path.join(clonesSequences, 'seqindex.sqlite')
 
-    libs = [x for x in os.listdir(clonesMaps)]
+    libs = [x for x in os.listdir(clonesMaps) if x.startswith('.')==False]
     dtitles = ['accession', 'chromosome'] + libs + ['total', 'length']
     libscoverage =  pd.DataFrame(columns = dtitles)
     outputf = os.path.join(cwd,'coverage.csv')
@@ -697,12 +702,13 @@ def makePairs(cpustouse=1,longestoverlap=200,shortestoverlap=20):
 
     allchrs = []
     libraries = os.listdir(clonesMaps)
-    libpaths = [os.path.join(clonesMaps, x) for x in libraries]
+    libpaths = [os.path.join(clonesMaps, x) for x in libraries if (x.startswith('.')==False and x!='index.csv')]
     for libpath in libpaths:
         for chr in os.listdir(libpath):
+            if chr == 'index.csv' or chr.startswith('.'):
+                continue
             if chr not in allchrs:
                 allchrs.append(chr)
-    allchrs.remove('index.csv')
 
     for chr in allchrs:
         #print(chr)
@@ -776,7 +782,10 @@ def getMaps(name):
 def getRestrictionMap(name,enzyme):
     maps = getMaps(name)
     nenzyme, r = getRightIsoschizomer(enzyme)
-    return(maps[nenzyme].item())
+    rmap = maps[nenzyme]
+    if type(rmap) != list:
+        rmap = rmap.item()
+    return(rmap)
 
 #get insert sequence of a BAC from name
 def getSequenceFromName(name):
@@ -828,7 +837,7 @@ def getMapsFromLoc(chrom,start,end, inclusive=True):
     maps = pd.DataFrame()
     for lib in os.listdir(placedMaps):
         mapPath = os.path.join(os.path.join(placedMaps,lib),str(chrom)+'.csv')
-        if os.path.isfile(mapPath) == False:
+        if os.path.isfile(mapPath) == False or mapPath.startswith('.'):
             continue
         mapsList = pd.read_csv(mapPath, sep='\t')
         if inclusive == True:
@@ -843,10 +852,12 @@ def getMapsFromLoc(chrom,start,end, inclusive=True):
 #Draw a circular or linear map of an enzyme
 def drawMap(name,enzyme,circular = False):
     maps = getMaps(name)
-    nenzyme, r = getRightIsoschizomer(enzyme)
-    rmap = maps[nenzyme].item()
+    nenzyme, rv = getRightIsoschizomer(enzyme)
+    rmap = maps[nenzyme]
     if type(rmap) == str:
         raise NameError('too many cuts')
+    if type(rmap) != list:
+        rmap = rmap.item()
     nums = [int(x) for x in rmap]
     totallength = np.abs(int(maps['End']) - int(maps['Start']))
     enz = eval('rst.'+enzyme)
